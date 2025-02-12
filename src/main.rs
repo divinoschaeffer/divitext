@@ -1,5 +1,9 @@
 mod editor;
+mod buffers_manager;
 
 fn main() {
-    editor::Editor::default().run();
+    match editor::Editor::default().run() {
+        Ok(_) => (),
+        Err(err) => println!("Error: {}", err),
+    }
 }
