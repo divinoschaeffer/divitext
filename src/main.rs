@@ -1,5 +1,6 @@
-mod editor;
-mod buffers_manager;
+pub mod editor;
+pub mod buffer;
+mod display;
 
 fn main() {
     match editor::Editor::default().run() {
