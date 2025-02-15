@@ -6,12 +6,12 @@ use crossterm::event::{read, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::style::Print;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{cursor, ExecutableCommand};
-use std::io::{stdout, Stdout};
-use log::info;
+use std::io::{stdout, Error, Stdout};
+use crossterm::cursor::{MoveToNextLine, SavePosition};
+use log::{error, info, warn};
 
 pub struct Editor {
     pub display: Display,
-    pub stdout: Stdout,
     pub exit: bool,
     pub current_buffer: Buffer,
 }
@@ -27,14 +27,13 @@ impl Editor {
     pub fn default() -> Self {
         Self {
             display: Display::default(),
-            stdout: stdout(),
             exit: false,
             current_buffer: Buffer::default(),
         }
     }
 
     pub fn run(&mut self) -> Result<(), std::io::Error> {
-        self.stdout.execute(EnterAlternateScreen)?;
+        self.display.stdout.execute(EnterAlternateScreen)?;
         enable_raw_mode()?;
         loop {
             if let Key(KeyEvent {
@@ -46,9 +45,7 @@ impl Editor {
                         self.exit = true;
                     },
                     KeyCode::Char(c) if KeyModifiers::is_empty(&modifiers) => {
-                        self.stdout.execute(Print(c))?;
-                        self.current_buffer.content.push(u8::try_from(c).unwrap());
-                        self.current_buffer.move_point_to(0, 1);
+                        self.handle_char_input(c)?;
                     },
                     KeyCode::Right => {
                         self.handle_cursor_movement(CursorMovement::Right)?;
@@ -63,13 +60,12 @@ impl Editor {
                         self.handle_cursor_movement(CursorMovement::Down)?;
                     },
                     KeyCode::Backspace => {
-                        self.stdout.execute(cursor::MoveLeft(1))?;
-                        self.stdout.execute(Print(' '))?;
-                        self.stdout.execute(cursor::MoveLeft(1))?;
+                        self.display.stdout.execute(cursor::MoveLeft(1))?;
+                        self.current_buffer.write_char(' ')?;
+                        self.display.stdout.execute(cursor::MoveLeft(1))?;
                     },
                     KeyCode::Enter => {
-                        self.current_buffer.content.push(u8::try_from('\n').unwrap());
-                        self.stdout.execute(Print('\n'))?;
+                        self.handle_enter_input()?;
                     }
                     _ => ()
                 };
@@ -79,7 +75,7 @@ impl Editor {
             };
         }
         disable_raw_mode()?;
-        self.stdout.execute(LeaveAlternateScreen)?;
+        self.display.stdout.execute(LeaveAlternateScreen)?;
         Ok(())
     }
 
@@ -87,27 +83,41 @@ impl Editor {
         match movement {
             CursorMovement::Up => {
                 if self.current_buffer.move_point_to(-1, 0) {
-                    self.stdout.execute(cursor::MoveUp(1))?;
+                    self.display.stdout.execute(cursor::MoveUp(1))?;
                 }
             }
             CursorMovement::Down => {
                 if self.current_buffer.move_point_to(1, 0) {
-                    self.stdout.execute(cursor::MoveDown(1))?;
+                    self.display.stdout.execute(cursor::MoveDown(1))?;
                 }
             }
             CursorMovement::Left => {
                 if self.current_buffer.move_point_to(0, -1) {
-                    self.stdout.execute(cursor::MoveLeft(1))?;
+                    self.display.stdout.execute(cursor::MoveLeft(1))?;
                 }
             }
             CursorMovement::Right => {
                 if self.current_buffer.move_point_to(0, 1) {
-                    self.stdout.execute(cursor::MoveRight(1))?;
+                    self.display.stdout.execute(cursor::MoveRight(1))?;
                 }
             }
         }
-        info!("buffer: {:?}, len : {:?}", String::from_utf8(self.current_buffer.content.clone()), self.current_buffer.content.len());
-        info!("buffer: {:?}", self.current_buffer.point);
+        info!("buffer: {:?}, len: {:?}, point: {:?}", String::from_utf8(self.current_buffer.content.clone()), self.current_buffer.content.len(), self.current_buffer.point);
+        Ok(())
+    }
+
+    pub fn handle_char_input(&mut self, c: char) -> Result<(), Error> {
+        self.display.print_char(c);
+        self.current_buffer.write_char(c)?;
+        self.current_buffer.move_point_to(0, 1);
+        Ok(())
+    }
+
+    pub fn handle_enter_input(&mut self) -> Result<(), Error> {
+        // TODO : handle enter when insert
+        self.current_buffer.write_char('\n')?;
+        self.current_buffer.move_point_to(1, 0);
+        self.display.stdout.execute(MoveToNextLine(1))?;
         Ok(())
     }
 }

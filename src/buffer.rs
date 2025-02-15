@@ -1,3 +1,5 @@
+use log::error;
+
 #[derive(Debug)]
 pub struct Buffer {
     pub content: Vec<u8>,
@@ -56,7 +58,7 @@ impl Buffer {
             let new_col = (col as isize + col_offset).max(0) as usize;
             let new_col = self.get_closest_column(new_line_index, new_col);
 
-            if new_col == col {
+            if new_col == col && new_col != 0 {
                 return false
             }
 
@@ -76,6 +78,21 @@ impl Buffer {
             current_pos += line.len() + 1;
         }
         None
+    }
+
+    pub fn write_char(&mut self, c: char) -> Result<(), std::io::Error> {
+        let position = self.point.buffer_position;
+        let u8_char = u8::try_from(c).unwrap();
+
+        if position >= self.content.len() as u32 {
+            self.content.push(u8_char);
+        } else {
+            if c == ' ' || c == '\n' {
+                self.content.insert(position as usize, u8_char)
+            }
+            self.content[position as usize] = u8_char;
+        }
+        Ok(())
     }
 }
 

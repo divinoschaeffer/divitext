@@ -11,9 +11,9 @@ mod display;
 fn init_logger() {
     let log_file = OpenOptions::new()
         .create(true)
-        .append(true) // Ajoute les logs au lieu d'écraser
+        .append(true)
         .open("log.txt")
-        .expect("Impossible d'ouvrir le fichier log.txt");
+        .expect("Unable to open log file");
 
     Dispatch::new()
         .format(|out, message, record| {
@@ -26,7 +26,7 @@ fn init_logger() {
         })
         .chain(log_file)
         .apply()
-        .expect("Impossible d'initialiser le logger");
+        .expect("Initialization failed");
 }
 
 fn main() {
