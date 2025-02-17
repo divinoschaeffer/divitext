@@ -1,14 +1,11 @@
-use std::ffi::c_long;
-use crate::buffer::{Buffer, MarkerMovement};
+use crate::buffer::Buffer;
 use crate::display::Display;
+use crossterm::cursor::MoveTo;
 use crossterm::event::Event::Key;
 use crossterm::event::{read, KeyCode, KeyEvent, KeyModifiers};
-use crossterm::style::Print;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{cursor, ExecutableCommand};
-use std::io::{empty, stdout, Error, Stdout};
-use crossterm::cursor::{MoveTo, MoveToNextLine, RestorePosition, SavePosition};
-use log::{error, info, warn};
+use std::io::Error;
 
 pub struct Editor {
     pub display: Display,
@@ -85,50 +82,80 @@ impl Editor {
     }
 
     pub fn handle_cursor_movement(&mut self, movement: CursorMovement) -> Result<(), Error> {
-        let (col , line) = cursor::position()?;
+        let (col , row) = cursor::position()?;
         match movement {
             CursorMovement::Up => {
-                if line >= 1 && self.is_cursor_position_valid((line - 1) as usize, col as usize) {
-                    self.current_buffer.move_point_to(-1, 0);
-                    self.display.stdout.execute(cursor::MoveUp(1))?;
+                if row >= 1 {
+                    if let Some((new_row, new_col)) = self.get_cursor_valid_position(row - 1, col) {
+                        self.current_buffer.move_point_to(-1, 0);
+                        self.display.stdout.execute(MoveTo(new_col, new_row))?;
+                    }
                 }
             }
             CursorMovement::Down => {
-                if self.is_cursor_position_valid((line + 1) as usize, col as usize) {
+                if let Some((new_row, new_col)) = self.get_cursor_valid_position(row + 1, col) {
                     self.current_buffer.move_point_to(1, 0);
-                    self.display.stdout.execute(cursor::MoveDown(1))?;
+                    self.display.stdout.execute(MoveTo(new_col, new_row))?;
                 }
             }
             CursorMovement::Left => {
-                if col >= 1 && self.is_cursor_position_valid(line as usize, (col - 1) as usize) {
-                    self.current_buffer.move_point_to(0, -1);
-                    self.display.stdout.execute(cursor::MoveLeft(1))?;
+                if col >= 1 {
+                    if let Some((new_row, new_col)) = self.get_cursor_valid_position(row, col - 1) {
+                        self.current_buffer.move_point_to(0, -1);
+                        self.display.stdout.execute(MoveTo(new_col, new_row))?;
+                    }
                 }
             }
             CursorMovement::Right => {
-                if self.is_cursor_position_valid(line as usize, (col + 1) as usize) {
+                if let Some((new_row, new_col)) = self.get_cursor_valid_position(row, col + 1) {
                     self.current_buffer.move_point_to(0, 1);
-                    self.display.stdout.execute(cursor::MoveRight(1))?;
+                    self.display.stdout.execute(MoveTo(new_col, new_row))?;
                 }
             }
         }
         Ok(())
     }
 
-    pub fn is_cursor_position_valid(&self, x: usize, y: usize) -> bool {
-        let occupied_positions: Vec<Option<usize>> = self.current_buffer.get_last_visible_char_position();
+    pub fn get_cursor_valid_position(&self, row: u16, col: u16) -> Option<(u16, u16)> {
+        let occupied_positions: Vec<Option<u16>> = self.current_buffer.get_last_visible_char_position();
+
+        if occupied_positions.is_empty() {
+            return Some((row, col))
+        }
+
+        if row >= occupied_positions.len() as u16 {
+            return None;
+        }
+
+        match occupied_positions.get(row as usize) {
+            Some(Some(occupied)) => {
+                if col <= occupied + 1 {
+                    Some((row, col))
+                } else {
+                    Some((row, *occupied))
+                }
+            },
+            Some(None) => {
+                Some((row, 0))
+            },
+            None => None,
+        }
+    }
+
+    pub fn is_cursor_position_valid(&self, row: u16, col: u16) -> bool {
+        let occupied_positions: Vec<Option<u16>> = self.current_buffer.get_last_visible_char_position();
 
         if occupied_positions.is_empty() {
             return true;
         }
 
-        if x >= occupied_positions.len() {
+        if row >= occupied_positions.len() as u16 {
             return false;
         }
 
-        match occupied_positions.get(x) {
-            Some(Some(occupied)) => y <= occupied + 1,
-            Some(None) => y == 0,
+        match occupied_positions.get(row as usize) {
+            Some(Some(occupied)) => col <= occupied + 1,
+            Some(None) => col == 0,
             None => false,
         }
     }

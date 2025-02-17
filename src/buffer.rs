@@ -1,5 +1,3 @@
-use log::error;
-
 #[derive(Debug)]
 pub struct Buffer {
     pub content: Vec<u8>,
@@ -84,10 +82,10 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn get_last_visible_char_position(&self) -> Vec<Option<usize>> {
+    pub fn get_last_visible_char_position(&self) -> Vec<Option<u16>> {
         self.content
             .split(|&c| c == b'\n')
-            .map(|line| if line.is_empty() { None } else { Some(line.len() - 1) })
+            .map(|line| if line.is_empty() { None } else { Some((line.len() - 1) as u16) })
             .collect()
     }
 }
