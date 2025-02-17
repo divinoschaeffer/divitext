@@ -1,7 +1,7 @@
-use std::io::{stdout, Stdout, Write};
-use crossterm::ExecutableCommand;
 use crossterm::style::Print;
 use crossterm::terminal::{Clear, ClearType};
+use crossterm::{cursor, ExecutableCommand};
+use std::io::{stdout, Stdout};
 
 pub struct Display {
     pub stdout: Stdout,
@@ -34,8 +34,19 @@ impl Display {
         self.stdout.execute(Print(c)).unwrap();
     }
 
+    pub fn print_string(&mut self, s: &str) {
+        for c in s.chars() {
+            if c == '\n' {
+                self.stdout.execute(cursor::MoveToNextLine(1)).unwrap();
+            } else {
+                self.print_char(c);
+            }
+        }
+    }
+
     pub fn clear_all_display(&mut self) {
         self.stdout.execute(Clear(ClearType::All)).unwrap();
+        self.stdout.execute(cursor::MoveTo(0, 0)).unwrap();
     }
 
     pub fn clear_display_before_cursor(&mut self) {

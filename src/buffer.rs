@@ -51,16 +51,8 @@ impl Buffer {
         if let Some((line_index, col)) = self.get_point_line_and_column() {
             let new_line_index = (line_index as isize + line_offset).max(0) as usize;
 
-            if new_line_index >= self.line_count() {
-                return false
-            }
-
             let new_col = (col as isize + col_offset).max(0) as usize;
             let new_col = self.get_closest_column(new_line_index, new_col);
-
-            if new_col == col && new_col != 0 {
-                return false
-            }
 
             let new_position = self.get_position_from_line_col(new_line_index, new_col);
             self.point.buffer_position = new_position as u32;
@@ -93,6 +85,13 @@ impl Buffer {
             self.content[position as usize] = u8_char;
         }
         Ok(())
+    }
+
+    pub fn get_last_visible_char_position(&self) -> Vec<Option<usize>> {
+        self.content
+            .split(|&c| c == b'\n')
+            .map(|line| if line.is_empty() { None } else { Some(line.len() - 1) })
+            .collect()
     }
 }
 
