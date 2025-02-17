@@ -79,10 +79,7 @@ impl Buffer {
         if position >= self.content.len() as u32 {
             self.content.push(u8_char);
         } else {
-            if c == ' ' || c == '\n' {
-                self.content.insert(position as usize, u8_char)
-            }
-            self.content[position as usize] = u8_char;
+            self.content.insert(position as usize, u8_char)
         }
         Ok(())
     }
