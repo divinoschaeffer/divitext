@@ -5,6 +5,7 @@ use crossterm::event::Event::Key;
 use crossterm::event::{read, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{cursor, ExecutableCommand};
+use std::cmp::PartialEq;
 use std::io::Error;
 
 pub struct Editor {
@@ -13,6 +14,7 @@ pub struct Editor {
     pub current_buffer: Buffer,
 }
 
+#[derive(PartialEq)]
 pub enum CursorMovement {
     Up,
     Down,
@@ -64,9 +66,7 @@ impl Editor {
                         self.handle_cursor_movement(CursorMovement::Down)?;
                     },
                     KeyCode::Backspace => {
-                        self.display.stdout.execute(cursor::MoveLeft(1))?;
-                        self.current_buffer.write_char(' ')?;
-                        self.display.stdout.execute(cursor::MoveLeft(1))?;
+                        self.handle_backspace_input()?;
                     },
                     KeyCode::Enter => {
                         self.handle_enter_input()?;
@@ -82,32 +82,32 @@ impl Editor {
     }
 
     pub fn handle_cursor_movement(&mut self, movement: CursorMovement) -> Result<(), Error> {
-        let (col , row) = cursor::position()?;
+        let (mut col , row) = cursor::position()?;
         match movement {
             CursorMovement::Up => {
                 if row >= 1 {
-                    if let Some((new_row, new_col)) = self.get_cursor_valid_position(row - 1, col) {
+                    if let Some((new_row, new_col)) = self.get_cursor_valid_position(row - 1, col, CursorMovement::Up) {
                         self.current_buffer.move_point_to(-1, 0);
                         self.display.stdout.execute(MoveTo(new_col, new_row))?;
                     }
                 }
             }
             CursorMovement::Down => {
-                if let Some((new_row, new_col)) = self.get_cursor_valid_position(row + 1, col) {
+                if let Some((new_row, new_col)) = self.get_cursor_valid_position(row + 1, col, CursorMovement::Down) {
                     self.current_buffer.move_point_to(1, 0);
                     self.display.stdout.execute(MoveTo(new_col, new_row))?;
                 }
             }
             CursorMovement::Left => {
                 if col >= 1 {
-                    if let Some((new_row, new_col)) = self.get_cursor_valid_position(row, col - 1) {
+                    if let Some((new_row, new_col)) = self.get_cursor_valid_position(row, col - 1, CursorMovement::Left) {
                         self.current_buffer.move_point_to(0, -1);
                         self.display.stdout.execute(MoveTo(new_col, new_row))?;
                     }
                 }
             }
             CursorMovement::Right => {
-                if let Some((new_row, new_col)) = self.get_cursor_valid_position(row, col + 1) {
+                if let Some((new_row, new_col)) = self.get_cursor_valid_position(row, col + 1, CursorMovement::Right) {
                     self.current_buffer.move_point_to(0, 1);
                     self.display.stdout.execute(MoveTo(new_col, new_row))?;
                 }
@@ -116,7 +116,7 @@ impl Editor {
         Ok(())
     }
 
-    pub fn get_cursor_valid_position(&self, row: u16, col: u16) -> Option<(u16, u16)> {
+    pub fn get_cursor_valid_position(&self, row: u16, col: u16, movement: CursorMovement) -> Option<(u16, u16)> {
         let occupied_positions: Vec<Option<u16>> = self.current_buffer.get_last_visible_char_position();
 
         if occupied_positions.is_empty() {
@@ -132,7 +132,33 @@ impl Editor {
                 if col <= occupied + 1 {
                     Some((row, col))
                 } else {
-                    Some((row, *occupied))
+                    match movement {
+                        CursorMovement::Up => {
+                            Some((row, *occupied))
+                        },
+                        CursorMovement::Down => {
+                            Some((row, *occupied))
+                        },
+                        CursorMovement::Left => {
+                            if row > 0 {
+                                let last_position = occupied_positions[(row - 1) as usize];
+                                if let Some(last_position) = last_position {
+                                    Some((row - 1, last_position))
+                                } else {
+                                    Some((row - 1, 0))
+                                }
+                            } else {
+                                None
+                            }
+                        },
+                        CursorMovement::Right => {
+                            if (row + 1) < occupied_positions.len() as u16 {
+                                Some((row + 1, 0))
+                            } else {
+                                None
+                            }
+                        }
+                    }
                 }
             },
             Some(None) => {
@@ -180,6 +206,12 @@ impl Editor {
         self.display.clear_all_display();
         let updated_content = String::from_utf8_lossy(&self.current_buffer.content);
         self.display.print_string(&updated_content);
+        Ok(())
+    }
+
+    pub fn handle_backspace_input(&mut self) -> Result<(), Error> {
+        self.current_buffer.move_point_to(-1, 0);
+        self.current_buffer.remove_char()?;
         Ok(())
     }
 }

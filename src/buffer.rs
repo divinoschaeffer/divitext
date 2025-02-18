@@ -88,6 +88,12 @@ impl Buffer {
             .map(|line| if line.is_empty() { None } else { Some((line.len() - 1) as u16) })
             .collect()
     }
+
+    pub fn remove_char(&mut self) -> Result<(), std::io::Error> {
+        let position = self.point.buffer_position;
+        self.content.remove(position as usize);
+        Ok(())
+    }
 }
 
 pub enum MarkerMovement {
