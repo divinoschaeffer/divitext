@@ -82,33 +82,33 @@ impl Editor {
     }
 
     pub fn handle_cursor_movement(&mut self, movement: CursorMovement) -> Result<(), Error> {
-        let (mut col , row) = cursor::position()?;
+        let (col, row) = cursor::position()?;
         match movement {
             CursorMovement::Up => {
                 if row >= 1 {
                     if let Some((new_row, new_col)) = self.get_cursor_valid_position(row - 1, col, CursorMovement::Up) {
-                        self.current_buffer.move_point_to(-1, 0);
+                        self.current_buffer.move_point_to(new_row, new_col);
                         self.display.stdout.execute(MoveTo(new_col, new_row))?;
                     }
                 }
             }
             CursorMovement::Down => {
                 if let Some((new_row, new_col)) = self.get_cursor_valid_position(row + 1, col, CursorMovement::Down) {
-                    self.current_buffer.move_point_to(1, 0);
+                    self.current_buffer.move_point_to(new_row, new_col);
                     self.display.stdout.execute(MoveTo(new_col, new_row))?;
                 }
             }
             CursorMovement::Left => {
                 if col >= 1 {
                     if let Some((new_row, new_col)) = self.get_cursor_valid_position(row, col - 1, CursorMovement::Left) {
-                        self.current_buffer.move_point_to(0, -1);
+                        self.current_buffer.move_point_to(new_row, new_col);
                         self.display.stdout.execute(MoveTo(new_col, new_row))?;
                     }
                 }
             }
             CursorMovement::Right => {
                 if let Some((new_row, new_col)) = self.get_cursor_valid_position(row, col + 1, CursorMovement::Right) {
-                    self.current_buffer.move_point_to(0, 1);
+                    self.current_buffer.move_point_to(new_row, new_col);
                     self.display.stdout.execute(MoveTo(new_col, new_row))?;
                 }
             }
@@ -186,32 +186,38 @@ impl Editor {
         }
     }
 
-
     pub fn handle_char_input(&mut self, c: char) -> Result<(), Error> {
         self.current_buffer.write_char(c)?;
-        if self.current_buffer.move_point_to(0, 1) {
-            let position = cursor::position()?;
-            self.display.clear_all_display();
-            let updated_content = String::from_utf8_lossy(&self.current_buffer.content);
-            self.display.print_string(&updated_content);
-            self.display.stdout.execute(MoveTo(position.0 + 1, position.1))?;
-        }
-
+        let (col, row) = cursor::position()?;
+        self.display.clear_and_print(self.current_buffer.content.clone())?;
+        self.current_buffer.move_point_to(row, col + 1);
+        self.display.stdout.execute(MoveTo(col + 1, row))?;
         Ok(())
     }
 
     pub fn handle_enter_input(&mut self) -> Result<(), Error> {
+        let (col, row) = cursor::position()?;
         self.current_buffer.write_char('\n')?;
-        self.current_buffer.move_point_to(1, 0);
-        self.display.clear_all_display();
-        let updated_content = String::from_utf8_lossy(&self.current_buffer.content);
-        self.display.print_string(&updated_content);
+        self.current_buffer.move_point_to(row + 1, col);
+        self.display.clear_and_print(self.current_buffer.content.clone())?;
         Ok(())
     }
 
     pub fn handle_backspace_input(&mut self) -> Result<(), Error> {
-        self.current_buffer.move_point_to(-1, 0);
-        self.current_buffer.remove_char()?;
+        let (col, row) = cursor::position()?;
+        if row > 0 && col == 0 { // remove last character from previous line
+            let new_row = row - 1;
+            let new_col = self.current_buffer.get_last_column(new_row);
+            self.current_buffer.move_point_to(new_row, new_col);
+            self.current_buffer.remove_char()?;
+            self.display.clear_and_print(self.current_buffer.content.clone())?;
+            self.display.stdout.execute(MoveTo(new_col, new_row))?;
+        } else if col > 0 {
+            self.current_buffer.move_point_to(row, col - 1);
+            self.current_buffer.remove_char()?;
+            self.display.clear_and_print(self.current_buffer.content.clone())?;
+            self.display.stdout.execute(MoveTo(col -1, row))?;
+        }
         Ok(())
     }
 }

@@ -34,19 +34,28 @@ impl Display {
         self.stdout.execute(Print(c)).unwrap();
     }
 
-    pub fn print_string(&mut self, s: &str) {
+    pub fn print_string(&mut self, s: &str) -> Result<(), std::io::Error> {
         for c in s.chars() {
             if c == '\n' {
-                self.stdout.execute(cursor::MoveToNextLine(1)).unwrap();
+                self.stdout.execute(cursor::MoveToNextLine(1))?;
             } else {
                 self.print_char(c);
             }
         }
+        Ok(())
     }
 
-    pub fn clear_all_display(&mut self) {
-        self.stdout.execute(Clear(ClearType::All)).unwrap();
-        self.stdout.execute(cursor::MoveTo(0, 0)).unwrap();
+    pub fn clear_and_print(&mut self, chars: Vec<u8>) -> Result<(), std::io::Error>{
+        self.clear_all_display()?;
+        let updated_content = String::from_utf8_lossy(chars.as_slice());
+        self.print_string(&updated_content)?;
+        Ok(())
+    }
+
+    pub fn clear_all_display(&mut self) -> Result<(), std::io::Error> {
+        self.stdout.execute(Clear(ClearType::All))?;
+        self.stdout.execute(cursor::MoveTo(0, 0))?;
+        Ok(())
     }
 
     pub fn clear_display_before_cursor(&mut self) {
