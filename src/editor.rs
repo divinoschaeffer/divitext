@@ -8,6 +8,7 @@ use crossterm::{cursor, ExecutableCommand};
 use std::cmp::PartialEq;
 use std::io::Error;
 
+const TAB_SIZE: u16 = 4;
 pub struct Editor {
     pub display: Display,
     pub exit: bool,
@@ -70,6 +71,9 @@ impl Editor {
                     },
                     KeyCode::Enter => {
                         self.handle_enter_input()?;
+                    },
+                    KeyCode::Tab => {
+                        self.handle_tab_input()?;
                     }
                     _ => ()
                 };
@@ -218,6 +222,17 @@ impl Editor {
             self.display.clear_and_print(self.current_buffer.content.clone())?;
             self.display.stdout.execute(MoveTo(col -1, row))?;
         }
+        Ok(())
+    }
+
+    pub fn handle_tab_input(&mut self) -> Result<(), Error> {
+        let (col, row) = cursor::position()?;
+        for _i in 0..TAB_SIZE {
+            self.current_buffer.write_char(' ')?
+        }
+        self.display.clear_and_print(self.current_buffer.content.clone())?;
+        self.current_buffer.move_point_to(row, col + TAB_SIZE);
+        self.display.stdout.execute(MoveTo(col + TAB_SIZE, row))?;
         Ok(())
     }
 }
