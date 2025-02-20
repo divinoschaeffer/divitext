@@ -93,6 +93,24 @@ impl Buffer {
         self.content.remove(position as usize);
         Ok(())
     }
+
+    pub fn get_buffer_part(&self, line1: u16, line2: u16) -> Result<Vec<u8>, std::io::Error> {
+        let lines: Vec<&[u8]> = self.content.split(|&c| c == b'\n').collect();
+
+        let start = line1 as usize;
+        let end = line2 as usize;
+
+        if start >= lines.len() {
+            return Ok(vec![]);
+        }
+
+        let end = end.min(lines.len());
+
+        let buffer_part = lines[start..end].join(&b'\n');
+
+        Ok(buffer_part)
+    }
+
 }
 
 pub enum MarkerMovement {

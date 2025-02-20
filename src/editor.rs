@@ -1,12 +1,13 @@
 use crate::buffer::Buffer;
 use crate::display::Display;
-use crossterm::cursor::MoveTo;
+use crossterm::cursor::{Hide, MoveTo};
 use crossterm::event::Event::Key;
-use crossterm::event::{read, KeyCode, KeyEvent, KeyModifiers};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
-use crossterm::{cursor, ExecutableCommand};
+use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, DisableLineWrap, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::{cursor, event, execute, ExecutableCommand};
 use std::cmp::PartialEq;
 use std::io::Error;
+use std::time::Duration;
 
 const TAB_SIZE: u16 = 4;
 pub struct Editor {
@@ -35,6 +36,7 @@ impl Editor {
     pub fn run(&mut self) -> Result<(), std::io::Error> {
         self.display.stdout.execute(EnterAlternateScreen)?;
         enable_raw_mode()?;
+        self.display.stdout.execute(DisableLineWrap)?;
         self.handle_key_events()?;
         disable_raw_mode()?;
         self.display.stdout.execute(LeaveAlternateScreen)?;
@@ -43,44 +45,40 @@ impl Editor {
 
     pub fn handle_key_events(&mut self) -> Result<(), Error> {
         loop {
-            if let Key(KeyEvent {
-                           code, modifiers, kind, state
-                       }) = read()?
-            {
-                match code {
-                    KeyCode::Char('q') if modifiers == KeyModifiers::CONTROL => {
-                        self.exit = true;
-                    },
-                    KeyCode::Char(c) if KeyModifiers::is_empty(&modifiers) => {
-                        self.handle_char_input(c)?;
-                    },
-                    KeyCode::Right => {
-                        self.handle_cursor_movement(CursorMovement::Right)?;
-                    },
-                    KeyCode::Left => {
-                        self.handle_cursor_movement(CursorMovement::Left)?;
-                    },
-                    KeyCode::Up => {
-                        self.handle_cursor_movement(CursorMovement::Up)?;
-                    },
-                    KeyCode::Down => {
-                        self.handle_cursor_movement(CursorMovement::Down)?;
-                    },
-                    KeyCode::Backspace => {
-                        self.handle_backspace_input()?;
-                    },
-                    KeyCode::Enter => {
-                        self.handle_enter_input()?;
-                    },
-                    KeyCode::Tab => {
-                        self.handle_tab_input()?;
+            if event::poll(Duration::from_millis(100))? {
+                match event::read()? {
+                    Event::Resize(width, height) => {
+                        self.display.height = height;
+                        self.display.width = width;
+                        if let Some((row, col)) = self.current_buffer.get_point_line_and_column() {
+                            self.display.clear_and_print(self.current_buffer.content.clone())?;
+                            execute!(self.display.stdout, MoveTo(col, row))?;
+                        }
                     }
-                    _ => ()
-                };
-            };
+                    Key(KeyEvent { code, modifiers, .. }) => {
+                        match code {
+                            KeyCode::Char('q') if modifiers.contains(KeyModifiers::CONTROL) => {
+                                self.exit = true;
+                            }
+                            KeyCode::Char(c) if modifiers.is_empty() => {
+                                self.handle_char_input(c)?;
+                            }
+                            KeyCode::Right => self.handle_cursor_movement(CursorMovement::Right)?,
+                            KeyCode::Left => self.handle_cursor_movement(CursorMovement::Left)?,
+                            KeyCode::Up => self.handle_cursor_movement(CursorMovement::Up)?,
+                            KeyCode::Down => self.handle_cursor_movement(CursorMovement::Down)?,
+                            KeyCode::Backspace => self.handle_backspace_input()?,
+                            KeyCode::Enter => self.handle_enter_input()?,
+                            KeyCode::Tab => self.handle_tab_input()?,
+                            _ => (),
+                        }
+                    }
+                    _ => (),
+                }
+            }
             if self.exit {
                 break;
-            };
+            }
         }
         Ok(())
     }

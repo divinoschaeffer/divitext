@@ -65,4 +65,8 @@ impl Display {
     pub fn clear_display_after_cursor(&mut self) {
         self.stdout.execute(Clear(ClearType::FromCursorDown)).unwrap();
     }
+
+    pub fn get_displayable_lines(& self) -> Result<(u16, u16), std::io::Error> {
+        Ok((self.first_line_visible, self.first_line_visible + self.height))
+    }
 }
