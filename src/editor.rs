@@ -50,19 +50,14 @@ impl Editor {
             if event::poll(Duration::from_millis(100))? {
                 match event::read()? {
                     Event::Resize(width, height) => {
-                        self.display.height = height;
-                        self.display.width = width;
-                        if let Some((row, col)) = self.current_buffer.get_point_line_and_column() {
-                            self.display.clear_and_print(self.current_buffer.content.clone())?;
-                            execute!(self.display.stdout, MoveTo(col, row))?;
-                        }
+                        self.handle_resizing(width, height)?;
                     }
                     Key(KeyEvent { code, modifiers, .. }) => {
                         match code {
                             KeyCode::Char('q') if modifiers.contains(KeyModifiers::CONTROL) => {
                                 self.exit = true;
                             }
-                            KeyCode::Char(c) if modifiers.is_empty() => {
+                            KeyCode::Char(c) if modifiers.is_empty() || modifiers ==KeyModifiers::SHIFT => {
                                 self.handle_char_input(c)?;
                             }
                             KeyCode::Right => self.handle_cursor_movement(CursorMovement::Right)?,
@@ -81,6 +76,16 @@ impl Editor {
             if self.exit {
                 break;
             }
+        }
+        Ok(())
+    }
+
+    fn handle_resizing(&mut self, width: u16, height: u16) -> Result<(), Error> {
+        self.display.height = height;
+        self.display.width = width;
+        if let Some((row, col)) = self.current_buffer.get_point_line_and_column() {
+            self.display.clear_and_print(self.current_buffer.content.clone())?;
+            execute!(self.display.stdout, MoveTo(col, row))?;
         }
         Ok(())
     }
@@ -170,7 +175,6 @@ impl Editor {
 
     pub fn get_cursor_valid_position(&self, row: u16, col: u16, movement: CursorMovement) -> Option<(u16, u16)> {
         let occupied_positions: Vec<Option<u16>> = self.current_buffer.get_last_visible_char_position();
-        // TODO: automatic next line with line at \n char
         if occupied_positions.is_empty() {
             return Some((row, col))
         }
