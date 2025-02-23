@@ -10,6 +10,8 @@ use std::io::Error;
 use std::time::Duration;
 
 const TAB_SIZE: u16 = 4;
+
+#[derive(Debug)]
 pub struct Editor {
     pub display: Display,
     pub exit: bool,
@@ -87,31 +89,59 @@ impl Editor {
         let (col, row) = cursor::position()?;
         match movement {
             CursorMovement::Up => {
-                if row >= 1 {
-                    if let Some((new_row, new_col)) = self.get_cursor_valid_position(row - 1, col, CursorMovement::Up) {
+                if row >= 1 || self.display.first_line_visible != 0{
+                    if let Some((new_row, new_col)) = self.get_cursor_valid_position(
+                        (self.display.first_line_visible + row) - 1,
+                        col,
+                        CursorMovement::Up
+                    ) {
+                        if new_row < self.display.first_line_visible {
+                            self.display.first_line_visible = self.display.first_line_visible - 1;
+                        }
                         self.current_buffer.move_point_to(new_row, new_col);
-                        self.display.stdout.execute(MoveTo(new_col, new_row))?;
+                        self.display_current_buffer()?;
+                        self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
                     }
                 }
             }
             CursorMovement::Down => {
-                if let Some((new_row, new_col)) = self.get_cursor_valid_position(row + 1, col, CursorMovement::Down) {
+                if let Some((new_row, new_col)) = self.get_cursor_valid_position(
+                    row + self.display.first_line_visible + 1,
+                    col,
+                    CursorMovement::Down
+                ) {
                     self.current_buffer.move_point_to(new_row, new_col);
-                    self.display.stdout.execute(MoveTo(new_col, new_row))?;
+                    if new_row - self.display.first_line_visible >= self.display.height {
+                        self.display.first_line_visible = self.display.first_line_visible + 1;
+                    }
+                    self.display_current_buffer()?;
+                    self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
                 }
             }
             CursorMovement::Left => {
                 if col >= 1 {
-                    if let Some((new_row, new_col)) = self.get_cursor_valid_position(row, col - 1, CursorMovement::Left) {
+                    if let Some((new_row, new_col)) = self.get_cursor_valid_position(
+                        row + self.display.first_line_visible,
+                        col - 1,
+                        CursorMovement::Left
+                    ) {
                         self.current_buffer.move_point_to(new_row, new_col);
-                        self.display.stdout.execute(MoveTo(new_col, new_row))?;
+                        self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
                     }
                 }
             }
             CursorMovement::Right => {
-                if let Some((new_row, new_col)) = self.get_cursor_valid_position(row, col + 1, CursorMovement::Right) {
+                if let Some((new_row, new_col)) = self.get_cursor_valid_position(
+                    row + self.display.first_line_visible,
+                    col + 1,
+                    CursorMovement::Right
+                ) {
                     self.current_buffer.move_point_to(new_row, new_col);
-                    self.display.stdout.execute(MoveTo(new_col, new_row))?;
+                    if new_row - self.display.first_line_visible >= self.display.height {
+                        self.display.first_line_visible = self.display.first_line_visible + 1;
+                    }
+                    self.display_current_buffer()?;
+                    self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
                 }
             }
         }
@@ -120,7 +150,7 @@ impl Editor {
 
     pub fn get_cursor_valid_position(&self, row: u16, col: u16, movement: CursorMovement) -> Option<(u16, u16)> {
         let occupied_positions: Vec<Option<u16>> = self.current_buffer.get_last_visible_char_position();
-
+        // TODO: automatic next line with line at \n char
         if occupied_positions.is_empty() {
             return Some((row, col))
         }
@@ -191,8 +221,8 @@ impl Editor {
     pub fn handle_char_input(&mut self, c: char) -> Result<(), Error> {
         self.current_buffer.write_char(c)?;
         let (col, row) = cursor::position()?;
-        self.display.clear_and_print(self.current_buffer.content.clone())?;
-        self.current_buffer.move_point_to(row, col + 1);
+        self.display_current_buffer()?;
+        self.current_buffer.move_point_to(row + self.display.first_line_visible, col + 1);
         self.display.stdout.execute(MoveTo(col + 1, row))?;
         Ok(())
     }
@@ -200,24 +230,28 @@ impl Editor {
     pub fn handle_enter_input(&mut self) -> Result<(), Error> {
         let (col, row) = cursor::position()?;
         self.current_buffer.write_char('\n')?;
-        self.current_buffer.move_point_to(row + 1, col);
-        self.display.clear_and_print(self.current_buffer.content.clone())?;
+        if row + 1 == self.display.height {
+            self.display.first_line_visible = self.display.first_line_visible + 1;
+        }
+        self.current_buffer.move_point_to(self.display.first_line_visible + row + 1, col);
+        self.display_current_buffer()?;
         Ok(())
     }
 
     pub fn handle_backspace_input(&mut self) -> Result<(), Error> {
         let (col, row) = cursor::position()?;
+        let first_visible_row = self.display.first_line_visible;
         if row > 0 && col == 0 { // remove last character from previous line
             let new_row = row - 1;
             let new_col = self.current_buffer.get_last_column(new_row);
-            self.current_buffer.move_point_to(new_row, new_col);
+            self.current_buffer.move_point_to(new_row + first_visible_row, new_col);
             self.current_buffer.remove_char()?;
-            self.display.clear_and_print(self.current_buffer.content.clone())?;
+            self.display_current_buffer()?;
             self.display.stdout.execute(MoveTo(new_col, new_row))?;
         } else if col > 0 {
-            self.current_buffer.move_point_to(row, col - 1);
+            self.current_buffer.move_point_to(row + first_visible_row, col - 1);
             self.current_buffer.remove_char()?;
-            self.display.clear_and_print(self.current_buffer.content.clone())?;
+            self.display_current_buffer()?;
             self.display.stdout.execute(MoveTo(col -1, row))?;
         }
         Ok(())
@@ -228,9 +262,20 @@ impl Editor {
         for _i in 0..TAB_SIZE {
             self.current_buffer.write_char(' ')?
         }
-        self.display.clear_and_print(self.current_buffer.content.clone())?;
-        self.current_buffer.move_point_to(row, col + TAB_SIZE);
+        self.display_current_buffer()?;
+        self.current_buffer.move_point_to(row + self.display.first_line_visible, col + TAB_SIZE);
         self.display.stdout.execute(MoveTo(col + TAB_SIZE, row))?;
         Ok(())
+    }
+
+    pub fn display_current_buffer(&mut self) -> Result<(), Error> {
+        let (start, end) = self.display.get_displayable_lines()?;
+        let part = self.current_buffer.get_buffer_part(start, end)?;
+        self.display.clear_and_print(part)?;
+        Ok(())
+    }
+
+    pub fn get_buffer_row(cursor_row: u16, visible_row: u16) -> u16 {
+        cursor_row + visible_row
     }
 }

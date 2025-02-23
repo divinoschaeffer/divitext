@@ -3,6 +3,7 @@ use crossterm::terminal::{Clear, ClearType};
 use crossterm::{cursor, ExecutableCommand};
 use std::io::{stdout, Stdout};
 
+#[derive(Debug)]
 pub struct Display {
     pub stdout: Stdout,
     pub width: u16,
