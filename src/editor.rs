@@ -214,7 +214,11 @@ impl Editor {
                 }
             },
             Some(None) => {
-                Some((row, 0))
+                if (row + 1) < occupied_positions.len() as u16 && movement == CursorMovement::Right {
+                    Some((row + 1, 0))
+                } else {
+                    Some((row, 0))
+                }
             },
             None => None,
         }
