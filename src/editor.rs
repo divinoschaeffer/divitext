@@ -8,6 +8,7 @@ use crossterm::{cursor, event, execute, ExecutableCommand};
 use std::cmp::PartialEq;
 use std::io::Error;
 use std::time::Duration;
+use log::{error, warn};
 
 const TAB_SIZE: u16 = 4;
 
@@ -76,6 +77,7 @@ impl Editor {
             if self.exit {
                 break;
             }
+            error!("{:?}", self.current_buffer.content);
         }
         Ok(())
     }
@@ -247,7 +249,10 @@ impl Editor {
     }
 
     pub fn handle_char_input(&mut self, c: char) -> Result<(), Error> {
+        warn!("aaaaa");
         self.current_buffer.write_char(c)?;
+        warn!("dsadsqé
+        ");
         let (col, row) = cursor::position()?;
         self.display_current_buffer()?;
         self.current_buffer.move_point_to(row + self.display.first_line_visible, col + 1);

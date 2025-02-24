@@ -46,10 +46,9 @@ impl Display {
         Ok(())
     }
 
-    pub fn clear_and_print(&mut self, chars: Vec<u8>) -> Result<(), std::io::Error>{
+    pub fn clear_and_print(&mut self, chars: String) -> Result<(), std::io::Error>{
         self.clear_all_display()?;
-         let updated_content = String::from_utf8_lossy(chars.as_slice());
-        self.print_string(&updated_content)?;
+        self.print_string(&chars)?;
         Ok(())
     }
 
