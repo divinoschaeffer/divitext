@@ -1,4 +1,4 @@
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, BufferType, Mark};
 use crate::display::Display;
 use crossterm::cursor::MoveTo;
 use crossterm::event::Event::Key;
@@ -16,7 +16,8 @@ const TAB_SIZE: u16 = 4;
 pub struct Editor {
     pub display: Display,
     pub exit: bool,
-    pub current_buffer: Buffer,
+    pub current_buffer: usize,
+    pub buffer_list: Vec<Buffer>,
 }
 
 #[derive(PartialEq)]
@@ -29,10 +30,22 @@ pub enum CursorMovement {
 
 impl Editor {
     pub fn default() -> Self {
+        let option_buffer = Self::init_option_buffer();
         Self {
             display: Display::default(),
             exit: false,
-            current_buffer: Buffer::default(),
+            current_buffer: 1,
+            buffer_list: vec! [option_buffer, Buffer::default()],
+        }
+    }
+
+    pub fn init_option_buffer() -> Buffer {
+        Buffer {
+            content: String::new(),
+            point: Mark::new(String::from("Point"), 0),
+            mark_list: vec![],
+            file_name: None,
+            buffer_type: BufferType::OPTION,
         }
     }
 
@@ -57,6 +70,9 @@ impl Editor {
                         match code {
                             KeyCode::Char('q') if modifiers.contains(KeyModifiers::CONTROL) => {
                                 self.exit = true;
+                            },
+                            KeyCode::Char('x') if modifiers.contains(KeyModifiers::CONTROL) => {
+                                self.handle_save_mode_input()?;
                             }
                             KeyCode::Char(c) if modifiers.is_empty() || modifiers ==KeyModifiers::SHIFT => {
                                 self.handle_char_input(c)?;
@@ -77,7 +93,6 @@ impl Editor {
             if self.exit {
                 break;
             }
-            error!("{:?}", self.current_buffer.content);
         }
         Ok(())
     }
@@ -85,8 +100,8 @@ impl Editor {
     fn handle_resizing(&mut self, width: u16, height: u16) -> Result<(), Error> {
         self.display.height = height;
         self.display.width = width;
-        if let Some((row, col)) = self.current_buffer.get_point_line_and_column() {
-            self.display.clear_and_print(self.current_buffer.content.clone())?;
+        if let Some((row, col)) = self.buffer_list[self.current_buffer].get_point_line_and_column() {
+            self.display.clear_and_print(self.buffer_list[self.current_buffer].content.clone())?;
             execute!(self.display.stdout, MoveTo(col, row))?;
         }
         Ok(())
@@ -117,7 +132,7 @@ impl Editor {
             col + 1,
             CursorMovement::Right
         ) {
-            self.current_buffer.move_point_to(new_row, new_col);
+            self.buffer_list[self.current_buffer].move_point_to(new_row, new_col);
             if new_row - self.display.first_line_visible >= self.display.height {
                 self.display.first_line_visible = self.display.first_line_visible + 1;
             }
@@ -134,7 +149,7 @@ impl Editor {
                 col - 1,
                 CursorMovement::Left
             ) {
-                self.current_buffer.move_point_to(new_row, new_col);
+                self.buffer_list[self.current_buffer].move_point_to(new_row, new_col);
                 self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
             }
         }
@@ -147,7 +162,7 @@ impl Editor {
             col,
             CursorMovement::Down
         ) {
-            self.current_buffer.move_point_to(new_row, new_col);
+            self.buffer_list[self.current_buffer].move_point_to(new_row, new_col);
             if new_row - self.display.first_line_visible >= self.display.height {
                 self.display.first_line_visible = self.display.first_line_visible + 1;
             }
@@ -167,7 +182,7 @@ impl Editor {
                 if new_row < self.display.first_line_visible {
                     self.display.first_line_visible = self.display.first_line_visible - 1;
                 }
-                self.current_buffer.move_point_to(new_row, new_col);
+                self.buffer_list[self.current_buffer].move_point_to(new_row, new_col);
                 self.display_current_buffer()?;
                 self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
             }
@@ -176,7 +191,7 @@ impl Editor {
     }
 
     pub fn get_cursor_valid_position(&self, row: u16, col: u16, movement: CursorMovement) -> Option<(u16, u16)> {
-        let occupied_positions: Vec<Option<u16>> = self.current_buffer.get_last_visible_char_position();
+        let occupied_positions: Vec<Option<u16>> = self.buffer_list[self.current_buffer].get_last_visible_char_position();
         if occupied_positions.is_empty() {
             return Some((row, col))
         }
@@ -231,7 +246,7 @@ impl Editor {
     }
 
     pub fn is_cursor_position_valid(&self, row: u16, col: u16) -> bool {
-        let occupied_positions: Vec<Option<u16>> = self.current_buffer.get_last_visible_char_position();
+        let occupied_positions: Vec<Option<u16>> = self.buffer_list[self.current_buffer].get_last_visible_char_position();
 
         if occupied_positions.is_empty() {
             return true;
@@ -249,22 +264,23 @@ impl Editor {
     }
 
     pub fn handle_char_input(&mut self, c: char) -> Result<(), Error> {
-        self.current_buffer.write_char(c)?;
+        self.buffer_list[self.current_buffer].write_char(c)?;
         let (col, row) = cursor::position()?;
         self.display_current_buffer()?;
-        self.current_buffer.move_point_to(row + self.display.first_line_visible, col + 1);
+        self.buffer_list[self.current_buffer].move_point_to(row + self.display.first_line_visible, col + 1);
         self.display.stdout.execute(MoveTo(col + 1, row))?;
         Ok(())
     }
 
     pub fn handle_enter_input(&mut self) -> Result<(), Error> {
         let (col, row) = cursor::position()?;
-        self.current_buffer.write_char('\n')?;
+        self.buffer_list[self.current_buffer].write_char('\n')?;
         if row + 1 == self.display.height {
             self.display.first_line_visible = self.display.first_line_visible + 1;
         }
-        self.current_buffer.move_point_to(self.display.first_line_visible + row + 1, col);
+        self.buffer_list[self.current_buffer].move_point_to(self.display.first_line_visible + row + 1, 0);
         self.display_current_buffer()?;
+        self.display.stdout.execute(MoveTo(0, row + 1))?;
         Ok(())
     }
 
@@ -273,14 +289,14 @@ impl Editor {
         let first_visible_row = self.display.first_line_visible;
         if row > 0 && col == 0 { // remove last character from previous line
             let new_row = row - 1;
-            let new_col = self.current_buffer.get_last_column(new_row);
-            self.current_buffer.move_point_to(new_row + first_visible_row, new_col);
-            self.current_buffer.remove_char()?;
+            let new_col = self.buffer_list[self.current_buffer].get_last_column(new_row);
+            self.buffer_list[self.current_buffer].move_point_to(new_row + first_visible_row, new_col);
+            self.buffer_list[self.current_buffer].remove_char()?;
             self.display_current_buffer()?;
             self.display.stdout.execute(MoveTo(new_col, new_row))?;
         } else if col > 0 {
-            self.current_buffer.move_point_to(row + first_visible_row, col - 1);
-            self.current_buffer.remove_char()?;
+            self.buffer_list[self.current_buffer].move_point_to(row + first_visible_row, col - 1);
+            self.buffer_list[self.current_buffer].remove_char()?;
             self.display_current_buffer()?;
             self.display.stdout.execute(MoveTo(col -1, row))?;
         }
@@ -290,22 +306,26 @@ impl Editor {
     pub fn handle_tab_input(&mut self) -> Result<(), Error> {
         let (col, row) = cursor::position()?;
         for _i in 0..TAB_SIZE {
-            self.current_buffer.write_char(' ')?
+            self.buffer_list[self.current_buffer].write_char(' ')?
         }
         self.display_current_buffer()?;
-        self.current_buffer.move_point_to(row + self.display.first_line_visible, col + TAB_SIZE);
+        self.buffer_list[self.current_buffer].move_point_to(row + self.display.first_line_visible, col + TAB_SIZE);
         self.display.stdout.execute(MoveTo(col + TAB_SIZE, row))?;
         Ok(())
     }
 
     pub fn display_current_buffer(&mut self) -> Result<(), Error> {
         let (start, end) = self.display.get_displayable_lines()?;
-        let part = self.current_buffer.get_buffer_part(start, end)?;
+        let part = self.buffer_list[self.current_buffer].get_buffer_part(start, end)?;
         self.display.clear_and_print(part)?;
         Ok(())
     }
 
     pub fn get_buffer_row(cursor_row: u16, visible_row: u16) -> u16 {
         cursor_row + visible_row
+    }
+
+    pub fn handle_save_mode_input(&mut self) -> Result<(), Error> {
+        Ok(())
     }
 }
