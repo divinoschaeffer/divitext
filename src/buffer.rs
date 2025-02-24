@@ -76,7 +76,7 @@ impl Buffer {
                 return Some((line_index as u16, self.point.buffer_position - current_pos));
             }
 
-            current_pos += char_count + 1; // +1 pour le '\n'
+            current_pos += char_count + 1;
         }
 
         None

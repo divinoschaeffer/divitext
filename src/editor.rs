@@ -249,10 +249,7 @@ impl Editor {
     }
 
     pub fn handle_char_input(&mut self, c: char) -> Result<(), Error> {
-        warn!("aaaaa");
         self.current_buffer.write_char(c)?;
-        warn!("dsadsqé
-        ");
         let (col, row) = cursor::position()?;
         self.display_current_buffer()?;
         self.current_buffer.move_point_to(row + self.display.first_line_visible, col + 1);
