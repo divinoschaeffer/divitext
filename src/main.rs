@@ -35,7 +35,7 @@ fn main() {
     log!(Level::Info,"Welcome to Divino editor!");
 
     let mut editor: Editor = Editor::default();
-    let file = args.get(0).cloned();
+    let file = args.first().cloned();
     match editor.init(file) {
         Ok(_) => (),
         Err(e) => {

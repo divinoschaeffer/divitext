@@ -32,14 +32,15 @@ pub enum CursorMovement {
     Right,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub enum EditorMode {
+    #[default]
     Normal,
     SaveMode
 }
 
-impl Editor {
-    pub fn default() -> Self {
+impl Default for Editor {
+    fn default() -> Self {
         let option_buffer = Self::init_option_buffer();
         Self {
             display: Display::default(),
@@ -50,11 +51,14 @@ impl Editor {
             mode: Normal,
         }
     }
+}
 
+impl Editor {
     pub fn init(&mut self, file_path: Option<String>) ->Result<(), Error> {
         if let Some(file) = file_path.as_ref() {
             let mut file = OpenOptions::new()
                 .create(true)
+                .truncate(true)
                 .read(true)
                 .write(true)
                 .open(file)?;
@@ -83,7 +87,7 @@ impl Editor {
         }
     }
 
-    pub fn run(&mut self) -> Result<(), std::io::Error> {
+    pub fn run(&mut self) -> Result<(), Error> {
         self.display.stdout.execute(EnterAlternateScreen)?;
         enable_raw_mode()?;
         self.display.stdout.execute(DisableLineWrap)?;
@@ -170,7 +174,7 @@ impl Editor {
         ) {
             self.buffer_list[self.current_buffer].move_point_to(new_row, new_col);
             if new_row - self.display.first_line_visible >= self.display.height {
-                self.display.first_line_visible = self.display.first_line_visible + 1;
+                self.display.first_line_visible += 1;
             }
             self.display_current_buffer()?;
             self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
@@ -200,7 +204,7 @@ impl Editor {
         ) {
             self.buffer_list[self.current_buffer].move_point_to(new_row, new_col);
             if new_row - self.display.first_line_visible >= self.display.height {
-                self.display.first_line_visible = self.display.first_line_visible + 1;
+                self.display.first_line_visible += 1;
             }
             self.display_current_buffer()?;
             self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
@@ -216,7 +220,7 @@ impl Editor {
                 CursorMovement::Up
             ) {
                 if new_row < self.display.first_line_visible {
-                    self.display.first_line_visible = self.display.first_line_visible - 1;
+                    self.display.first_line_visible -= 1;
                 }
                 self.buffer_list[self.current_buffer].move_point_to(new_row, new_col);
                 self.display_current_buffer()?;
@@ -313,7 +317,7 @@ impl Editor {
             let (_, row) = cursor::position()?;
             self.buffer_list[self.current_buffer].write_char('\n')?;
             if row + 1 == self.display.height {
-                self.display.first_line_visible = self.display.first_line_visible + 1;
+                self.display.first_line_visible += 1;
             }
             self.buffer_list[self.current_buffer].move_point_to(self.display.first_line_visible + row + 1, 0);
             self.display_current_buffer()?;
@@ -374,10 +378,10 @@ impl Editor {
 
         loop {
             match event::read()? {
-                Key(KeyEvent { code, .. }) if matches!(code, KeyCode::Char('Y') | KeyCode::Char('y')) => {
+                Key(KeyEvent { code: KeyCode::Char('Y') | KeyCode::Char('y'), .. }) => {
                     return self.handle_save_file();
                 }
-                Key(KeyEvent { code, .. }) if matches!(code, KeyCode::Char('N') | KeyCode::Char('n')) => {
+                Key(KeyEvent { code: KeyCode::Char('N') | KeyCode::Char('n'), .. }) => {
                     self.handle_cancel_save()?;
                     execute!(self.display.stdout, RestorePosition)?;
                     return Ok(());

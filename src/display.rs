@@ -13,6 +13,18 @@ pub struct Display {
     pub first_line_visible: u16,
 }
 
+impl Default for Display {
+    fn default() -> Self {
+        let (width, height): (u16, u16) = crossterm::terminal::size().unwrap();
+        Self {
+            stdout: stdout(),
+            width,
+            height,
+            first_line_visible: 0,
+        }
+    }
+}
+
 impl Display {
     pub fn new(stdout: Stdout, width: u16, height: u16, first_line_visible: u16) -> Display {
         Display {
@@ -20,16 +32,6 @@ impl Display {
             width,
             height,
             first_line_visible,
-        }
-    }
-
-    pub fn default() -> Display {
-        let (width, height): (u16, u16) = crossterm::terminal::size().unwrap();
-        Display {
-            stdout: stdout(),
-            width,
-            height,
-            first_line_visible: 0,
         }
     }
 

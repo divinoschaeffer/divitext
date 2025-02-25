@@ -7,8 +7,9 @@ pub struct Buffer {
     pub buffer_type: BufferType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum BufferType {
+    #[default]
     FILE,
     OPTION
 }
@@ -19,8 +20,8 @@ pub struct Mark {
     pub buffer_position: u16,
 }
 
-impl Buffer {
-    pub fn default() -> Buffer {
+impl Default for Buffer {
+    fn default() -> Self {
         Buffer {
             content: String::new(),
             point: Mark::new(String::from("Point"), 0),
@@ -29,7 +30,9 @@ impl Buffer {
             buffer_type: BufferType::FILE,
         }
     }
+}
 
+impl Buffer {
     pub fn get_position_from_line_col(&self, line_index: u16, col: u16) -> u16 {
         let mut position = 0;
 
@@ -161,6 +164,15 @@ impl Mark {
         Mark {
             name,
             buffer_position,
+        }
+    }
+}
+
+impl Default for Mark {
+    fn default() -> Self {
+        Self {
+            name: String::from("Point"),
+            buffer_position: 0,
         }
     }
 }
