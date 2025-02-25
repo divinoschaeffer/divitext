@@ -6,6 +6,13 @@ pub struct Buffer {
     pub point: Mark,
     pub mark_list: Vec<Mark>,
     pub file_name: Option<String>,
+    pub buffer_type: BufferType,
+}
+
+#[derive(Debug)]
+pub enum BufferType {
+    FILE,
+    OPTION
 }
 
 #[derive(Debug)]
@@ -21,6 +28,7 @@ impl Buffer {
             point: Mark::new(String::from("Point"), 0),
             mark_list: vec![],
             file_name: None,
+            buffer_type: BufferType::FILE,
         }
     }
 
@@ -76,7 +84,7 @@ impl Buffer {
                 return Some((line_index as u16, self.point.buffer_position - current_pos));
             }
 
-            current_pos += char_count + 1; // +1 pour le '\n'
+            current_pos += char_count + 1;
         }
 
         None
@@ -84,7 +92,6 @@ impl Buffer {
 
     pub fn write_char(&mut self, c: char) -> Result<(), std::io::Error> {
         let position = self.point.buffer_position as usize;
-        error!("{:?}", position);
         if position >= self.content.chars().count() {
             self.content.push(c);
         } else {
@@ -107,7 +114,7 @@ impl Buffer {
 
     pub fn get_last_visible_char_position(&self) -> Vec<Option<u16>> {
         self.content
-            .lines()
+            .split('\n')
             .map(|line| {
                 let char_count = line.chars().count() as u16;
                 if char_count == 0 { None } else { Some(char_count - 1) }
@@ -122,7 +129,7 @@ impl Buffer {
     }
 
     pub fn get_buffer_part(&self, line1: u16, line2: u16) -> Result<String, std::io::Error> {
-        let lines: Vec<&str> = self.content.lines().collect();
+        let lines: Vec<&str> = self.content.split('\n').collect();
 
         if line1 as usize >= lines.len() {
             return Ok(String::new());
