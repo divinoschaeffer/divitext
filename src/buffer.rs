@@ -1,5 +1,3 @@
-use log::error;
-
 #[derive(Debug)]
 pub struct Buffer {
     pub content: String,

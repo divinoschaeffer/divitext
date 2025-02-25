@@ -1,8 +1,8 @@
-use std::fs::{File, OpenOptions};
-use std::io::Write;
+use std::fs::{OpenOptions};
 use chrono::Local;
 use fern::Dispatch;
-use log::{log, warn, Level, LevelFilter};
+use log::{error, log, Level};
+use crate::editor::Editor;
 
 pub mod editor;
 pub mod buffer;
@@ -30,10 +30,21 @@ fn init_logger() {
 }
 
 fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
     init_logger();
-    log!(Level::Info,"Welcome to Rust editor!");
-    match editor::Editor::default().run() {
+    log!(Level::Info,"Welcome to Divino editor!");
+
+    let mut editor: Editor = Editor::default();
+    let file = args.get(0).cloned();
+    match editor.init(file) {
         Ok(_) => (),
-        Err(err) => println!("Error: {}", err),
+        Err(e) => {
+            error!("{}", e);
+        }
+    };
+
+    match editor.run() {
+        Ok(_) => (),
+        Err(err) => error!("{}", err),
     }
 }

@@ -8,9 +8,9 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode, DisableLineWrap, En
 use crossterm::{cursor, event, execute, ExecutableCommand};
 use std::cmp::PartialEq;
 use std::fs::OpenOptions;
-use std::io::{Error, Write};
+use std::io::{Error, Read, Write};
 use std::time::Duration;
-use log::error;
+use log::{error, info};
 
 const TAB_SIZE: u16 = 4;
 
@@ -51,6 +51,28 @@ impl Editor {
         }
     }
 
+    pub fn init(&mut self, file_path: Option<String>) ->Result<(), Error> {
+        if let Some(file) = file_path.as_ref() {
+            let mut file = OpenOptions::new()
+                .create(true)
+                .read(true)
+                .write(true)
+                .open(file)?;
+
+            let mut content = String::new();
+            file.read_to_string(&mut content)?;
+
+            if let Some(buffer) = self.buffer_list.get_mut(self.current_buffer) {
+                buffer.content = content;
+                buffer.file_name = file_path.clone();
+                info!("File {:?} is loaded or created", buffer.file_name);
+            } else {
+                error!("Invalid buffer index: {}", self.current_buffer);
+            }
+        }
+        Ok(())
+    }
+
     pub fn init_option_buffer() -> Buffer {
         Buffer {
             content: String::new(),
@@ -65,6 +87,8 @@ impl Editor {
         self.display.stdout.execute(EnterAlternateScreen)?;
         enable_raw_mode()?;
         self.display.stdout.execute(DisableLineWrap)?;
+        self.display_current_buffer()?;
+        self.display.stdout.execute(MoveTo(0, 0))?;
         self.handle_key_events()?;
         disable_raw_mode()?;
         self.display.stdout.execute(LeaveAlternateScreen)?;
@@ -286,7 +310,7 @@ impl Editor {
 
     pub fn handle_enter_input(&mut self) -> Result<(), Error> {
         if self.mode == Normal {
-            let (col, row) = cursor::position()?;
+            let (_, row) = cursor::position()?;
             self.buffer_list[self.current_buffer].write_char('\n')?;
             if row + 1 == self.display.height {
                 self.display.first_line_visible = self.display.first_line_visible + 1;
