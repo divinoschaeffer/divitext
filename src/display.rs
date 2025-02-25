@@ -1,7 +1,9 @@
-use crossterm::style::Print;
+use crossterm::style::{Print, ResetColor, SetBackgroundColor, SetForegroundColor};
 use crossterm::terminal::{Clear, ClearType};
-use crossterm::{cursor, ExecutableCommand};
+use crossterm::{cursor, execute, ExecutableCommand};
 use std::io::{stdout, Stdout};
+use crossterm::cursor::MoveTo;
+use crossterm::style::Color::{Black, White};
 
 #[derive(Debug)]
 pub struct Display {
@@ -54,7 +56,7 @@ impl Display {
 
     pub fn clear_all_display(&mut self) -> Result<(), std::io::Error> {
         self.stdout.execute(Clear(ClearType::All))?;
-        self.stdout.execute(cursor::MoveTo(0, 0))?;
+        self.stdout.execute(MoveTo(0, 0))?;
         Ok(())
     }
 
@@ -68,5 +70,26 @@ impl Display {
 
     pub fn get_displayable_lines(& self) -> Result<(u16, u16), std::io::Error> {
         Ok((self.first_line_visible, self.first_line_visible + self.height))
+    }
+
+    pub fn print_save_validation(&mut self) -> Result<(), std::io::Error> {
+        execute!(
+            self.stdout,
+            MoveTo(0, self.height - 1),
+            SetForegroundColor(Black),
+            SetBackgroundColor(White),
+            Print("Save file ? Y/N"),
+            ResetColor,
+        )?;
+        Ok(())
+    }
+
+    pub fn print_filename_input(&mut self) -> Result<(), std::io::Error>{
+        execute!(
+            self.stdout,
+            MoveTo(0, 0),
+            Print("Enter a filename"),
+        )?;
+        Ok(())
     }
 }
