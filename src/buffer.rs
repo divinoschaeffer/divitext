@@ -50,7 +50,7 @@ impl Buffer {
 
 
     pub fn get_closest_column(&self, line_index: u16, col: u16) -> u16 {
-        if let Some(line) = self.content.lines().nth(line_index as usize) {
+        if let Some(line) = self.content.split('\n').nth(line_index as usize) {
             col.min(line.chars().count() as u16 - 1)
         } else {
             0
@@ -58,15 +58,22 @@ impl Buffer {
     }
 
     pub fn get_last_column(&self, line_index: u16) -> u16 {
-        if let Some(line) = self.content.lines().nth(line_index as usize) {
-            line.chars().count() as u16 - 1
+        let lines: Vec<&str> = self.content.split('\n').collect();
+
+        if let Some(line) = lines.get(line_index as usize) {
+            let base_length = line.chars().count() as u16;
+            if line_index < (lines.len() as u16 - 1) {
+                base_length + 1
+            } else {
+                base_length
+            }
         } else {
             0
         }
     }
 
     pub fn line_count(&self) -> u16 {
-        self.content.lines().count() as u16
+        self.content.split('\n').count() as u16
     }
 
     pub fn move_point_to(&mut self, line_offset: u16, col_offset: u16) {
@@ -77,7 +84,7 @@ impl Buffer {
     pub fn get_point_line_and_column(&self) -> Option<(u16, u16)> {
         let mut current_pos = 0;
 
-        for (line_index, line) in self.content.lines().enumerate() {
+        for (line_index, line) in self.content.split('\n').enumerate() {
             let char_count = line.chars().count() as u16;
 
             if self.point.buffer_position <= current_pos + char_count {

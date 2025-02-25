@@ -10,6 +10,7 @@ use std::cmp::PartialEq;
 use std::fs::OpenOptions;
 use std::io::{Error, Write};
 use std::time::Duration;
+use log::error;
 
 const TAB_SIZE: u16 = 4;
 
@@ -311,7 +312,7 @@ impl Editor {
             self.buffer_list[self.current_buffer].move_point_to(new_row + first_visible_row, new_col);
             self.buffer_list[self.current_buffer].remove_char()?;
             self.display_current_buffer()?;
-            self.display.stdout.execute(MoveTo(new_col, new_row))?;
+            self.display.stdout.execute(MoveTo(new_col - 1, new_row))?;
         } else if col > 0 {
             self.buffer_list[self.current_buffer].move_point_to(row + first_visible_row, col - 1);
             self.buffer_list[self.current_buffer].remove_char()?;
