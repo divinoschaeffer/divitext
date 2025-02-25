@@ -12,7 +12,7 @@ fn init_logger() {
     let log_file = OpenOptions::new()
         .create(true)
         .append(true)
-        .open("log.txt")
+        .open("divino_editor_log")
         .expect("Unable to open log file");
 
     Dispatch::new()
