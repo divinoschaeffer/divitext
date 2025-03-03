@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use crate::buffer::{Buffer, BufferType, Mark};
 use crate::display::Display;
 use crate::editor::EditorMode::{Normal, SaveMode};
@@ -9,6 +10,7 @@ use crossterm::{cursor, event, execute, ExecutableCommand};
 use std::cmp::PartialEq;
 use std::fs::OpenOptions;
 use std::io::{Error, Read, Write};
+use std::rc::Rc;
 use std::time::Duration;
 use log::{error, info};
 
@@ -17,7 +19,7 @@ const TAB_SIZE: u16 = 4;
 #[derive(Debug)]
 pub struct Editor {
     pub display: Display,
-    pub exit: bool,
+    pub exit: Rc<Cell<bool>>,
     pub current_buffer: usize,
     pub previous_buffer: usize,
     pub buffer_list: Vec<Buffer>,
@@ -44,7 +46,7 @@ impl Default for Editor {
         let option_buffer = Self::init_option_buffer();
         Self {
             display: Display::default(),
-            exit: false,
+            exit: Rc::new(Cell::new(false)),
             previous_buffer: 0,
             current_buffer: 1,
             buffer_list: vec! [option_buffer, Buffer::default()],
@@ -54,6 +56,18 @@ impl Default for Editor {
 }
 
 impl Editor {
+    pub fn new(exit: Rc<Cell<bool>>) -> Self {
+        let option_buffer = Self::init_option_buffer();
+        Self {
+            display: Display::default(),
+            exit,
+            previous_buffer: 0,
+            current_buffer: 1,
+            buffer_list: vec! [option_buffer, Buffer::default()],
+            mode: Normal,
+        }
+    }
+
     pub fn init(&mut self, file_path: Option<String>) ->Result<(), Error> {
         if let Some(file) = file_path.as_ref() {
             let mut file = OpenOptions::new()
@@ -87,7 +101,7 @@ impl Editor {
         }
     }
 
-    pub fn run(&mut self) -> Result<(), Error> {
+    /*pub fn run(&mut self) -> Result<(), Error> {
         self.display.stdout.execute(EnterAlternateScreen)?;
         enable_raw_mode()?;
         self.display.stdout.execute(DisableLineWrap)?;
@@ -97,42 +111,28 @@ impl Editor {
         disable_raw_mode()?;
         self.display.stdout.execute(LeaveAlternateScreen)?;
         Ok(())
-    }
+    }*/
 
-    pub fn handle_key_events(&mut self) -> Result<(), Error> {
-        loop {
-            if event::poll(Duration::from_millis(100))? {
-                match event::read()? {
-                    Event::Resize(width, height) => {
-                        self.handle_resizing(width, height)?;
-                    }
-                    Key(KeyEvent { code, modifiers, .. }) => {
-                        match code {
-                            KeyCode::Char('q') if modifiers.contains(KeyModifiers::CONTROL) => {
-                                self.exit = true;
-                            },
-                            KeyCode::Char('x') if modifiers.contains(KeyModifiers::CONTROL) && self.mode == Normal => {
-                                self.handle_save_mode_input()?;
-                            }
-                            KeyCode::Char(c) if modifiers.is_empty() || modifiers ==KeyModifiers::SHIFT => {
-                                self.handle_char_input(c)?;
-                            }
-                            KeyCode::Right => self.handle_cursor_movement(CursorMovement::Right)?,
-                            KeyCode::Left => self.handle_cursor_movement(CursorMovement::Left)?,
-                            KeyCode::Up => self.handle_cursor_movement(CursorMovement::Up)?,
-                            KeyCode::Down => self.handle_cursor_movement(CursorMovement::Down)?,
-                            KeyCode::Backspace => self.handle_backspace_input()?,
-                            KeyCode::Enter => self.handle_enter_input()?,
-                            KeyCode::Tab => self.handle_tab_input()?,
-                            _ => (),
-                        }
-                    }
-                    _ => (),
-                }
+    pub fn handle_key_events(&mut self, key: KeyEvent) -> Result<(), Error> {
+        let KeyEvent { code, modifiers, .. } = key;
+        match code {
+            KeyCode::Char('q') if modifiers.contains(KeyModifiers::CONTROL) => {
+                self.exit.set(true);
+            },
+            KeyCode::Char('x') if modifiers.contains(KeyModifiers::CONTROL) && self.mode == Normal => {
+                self.handle_save_mode_input()?;
             }
-            if self.exit {
-                break;
+            KeyCode::Char(c) if modifiers.is_empty() || modifiers ==KeyModifiers::SHIFT => {
+                self.handle_char_input(c)?;
             }
+            KeyCode::Right => self.handle_cursor_movement(CursorMovement::Right)?,
+            KeyCode::Left => self.handle_cursor_movement(CursorMovement::Left)?,
+            KeyCode::Up => self.handle_cursor_movement(CursorMovement::Up)?,
+            KeyCode::Down => self.handle_cursor_movement(CursorMovement::Down)?,
+            KeyCode::Backspace => self.handle_backspace_input()?,
+            KeyCode::Enter => self.handle_enter_input()?,
+            KeyCode::Tab => self.handle_tab_input()?,
+            _ => (),
         }
         Ok(())
     }
