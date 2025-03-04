@@ -1,19 +1,21 @@
+use crate::editor::Editor;
+use crossterm::{event, execute};
+use crossterm::event::{DisableMouseCapture, Event, KeyCode, KeyModifiers};
+use ratatui::{DefaultTerminal, Frame};
 use std::cell::Cell;
 use std::io;
+use std::io::stdout;
 use std::rc::Rc;
-use crossterm::event;
-use crossterm::event::Event;
-use ratatui::{DefaultTerminal, Frame};
-use crate::editor::Editor;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 
 #[derive(Debug)]
-pub struct App {
+pub struct App<'a> {
     pub current_screen: CurrentScreen,
-    pub editor: Editor,
+    pub editor: Editor<'a>,
     pub exit: Rc<Cell<bool>>,
 }
 
-impl Default for App {
+impl Default for App<'_> {
     fn default() -> Self {
         let exit = Rc::new(Cell::new(false));
         Self {
@@ -24,14 +26,14 @@ impl Default for App {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub enum CurrentScreen {
     Home,
     #[default]
     Editor,
 }
 
-impl App {
+impl App<'_> {
     pub fn run(&mut self, terminal: &mut DefaultTerminal, file: Option<String>) -> io::Result<()> {
         self.editor.init(file)?;
 
@@ -43,16 +45,39 @@ impl App {
         Ok(())
     }
 
+    pub fn init(terminal: &mut DefaultTerminal) -> Result<(), io::Error> {
+        enable_raw_mode()?;
+        execute!(
+            terminal.backend_mut(),
+            EnterAlternateScreen
+        )?;
+        Ok(())
+    }
+
+    pub fn drop(terminal: &mut DefaultTerminal) -> Result<(), io::Error> {
+        execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )?;
+        disable_raw_mode()?;
+        terminal.show_cursor()?;
+        Ok(())
+    }
+
     fn draw(&self, frame: &mut Frame) {
-        frame.render_widget("hello world", frame.area());
+        frame.render_widget(&self.editor, frame.area());
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
         if let Event::Key(key) = event::read()? {
+            if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::CONTROL {
+                self.exit.set(true)
+            }
             match self.current_screen {
                 CurrentScreen::Home => (),
                 CurrentScreen::Editor => {
-                    self.editor.handle_key_events(key)?;
+                    self.editor.handle_input(key)?;
                 }
             }
         }

@@ -6,15 +6,13 @@ use crossterm::event::DisableMouseCapture;
 use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use fern::Dispatch;
-use log::{error, log, Level};
+use log::{log, Level};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use crate::app::App;
-use crate::editor::Editor;
 
 pub mod editor;
 pub mod buffer;
-mod display;
 mod app;
 
 fn init_logger() {
@@ -48,22 +46,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let backend: CrosstermBackend<Stdout> = CrosstermBackend::new(std::io::stdout());
     let mut terminal = Terminal::new(backend)?;
 
-    enable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        EnterAlternateScreen
-    )?;
-
+    App::init(&mut terminal)?;
     let mut app: App = App::default();
     app.run(&mut terminal, file)?;
-
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    disable_raw_mode()?;
-    terminal.show_cursor()?;
+    App::drop(&mut terminal)?;
 
     Ok(())
 }
