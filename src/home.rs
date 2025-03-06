@@ -33,31 +33,29 @@ impl Widget for &Home {
                 Constraint::Percentage(70),
                 Constraint::Percentage(15),
             ])
-            .flex(Flex::Center)
             .split(area);
 
         let center_area_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(25),
-                Constraint::Percentage(50),
-                Constraint::Percentage(25),
+                Constraint::Fill(1),
+                Constraint::Length(500),
+                Constraint::Fill(1),
             ])
-            .flex(Flex::Center)
             .split(layout[1]);
 
         let inner_center_area= Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(3000),
-                Constraint::Min(7000),
+                Constraint::Min(300),
+                Constraint::Min(400),
             ])
             .split(center_area_layout[1]);
 
         let title_area = inner_center_area[0];
         let main_area = inner_center_area[1];
 
-        let title = Text::raw(name.clone());
+        let title = Text::raw(name.clone()).centered();
         title.render(title_area, buf);
     }
 }
