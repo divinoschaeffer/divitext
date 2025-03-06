@@ -1,16 +1,17 @@
 use crate::editor::Editor;
-use crossterm::{event, execute};
 use crossterm::event::{DisableMouseCapture, Event, KeyCode, KeyModifiers};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::{event, execute};
 use ratatui::{DefaultTerminal, Frame};
 use std::cell::Cell;
 use std::io;
-use std::io::stdout;
 use std::rc::Rc;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crate::home::Home;
 
 #[derive(Debug)]
 pub struct App<'a> {
     pub current_screen: CurrentScreen,
+    pub home: Home,
     pub editor: Editor<'a>,
     pub exit: Rc<Cell<bool>>,
 }
@@ -19,7 +20,8 @@ impl Default for App<'_> {
     fn default() -> Self {
         let exit = Rc::new(Cell::new(false));
         Self {
-            current_screen: CurrentScreen::Editor,
+            current_screen: CurrentScreen::default(),
+            home: Home::default(),
             editor: Editor::new(exit.clone()),
             exit,
         }
@@ -28,8 +30,8 @@ impl Default for App<'_> {
 
 #[derive(Debug, Default, Clone)]
 pub enum CurrentScreen {
-    Home,
     #[default]
+    Home,
     Editor,
 }
 
@@ -66,7 +68,10 @@ impl App<'_> {
     }
 
     fn draw(&self, frame: &mut Frame) {
-        frame.render_widget(&self.editor, frame.area());
+        match &self.current_screen {
+            CurrentScreen::Editor => frame.render_widget(&self.editor, frame.area()),
+            CurrentScreen::Home => frame.render_widget(&self.home, frame.area())
+        }
     }
 
     fn handle_events(&mut self) -> io::Result<()> {

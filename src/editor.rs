@@ -7,7 +7,6 @@ use std::io::{BufRead};
 use std::ops::Deref;
 use std::rc::Rc;
 use crossterm::event::KeyEvent;
-use log::{error, log};
 use tui_textarea::TextArea;
 use crate::buffer::Buffer;
 
@@ -48,7 +47,6 @@ impl<'a> Editor<'a> {
     }
 
     pub fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
-        error!("key event: {:?}", key);
         self.buffer_list[self.current_buffer].input.input(key);
         Ok(())
     }
