@@ -6,7 +6,7 @@ use std::io;
 use std::rc::Rc;
 use crate::state::State;
 
-const name_title: &str = r##"
+const NAME_TITLE: &str = r##"
       ██    ██  ███████  ██       ██       ███████.
       ██    ██  ██       ██       ██      ██     ██
       ████████  ██████   ██       ██      ██     ██
@@ -20,16 +20,16 @@ const name_title: &str = r##"
    ████   ████     ███████   ██    ██   ███████  ████████    ██
 "##;
 
-const new_file: &str = r##"+ New File       CRL n"##;
+const NEW_FILE: &str = r##"+ New File       CRL n"##;
 
 #[derive(Debug)]
-pub struct Home {
-    pub state: Rc<RefCell<State>>
+pub struct Home<'a> {
+    pub state: Rc<RefCell<State<'a>>>
 }
 
-impl Home {
+impl<'a> Home<'a> {
 
-    pub fn new(state: Rc<RefCell<State>>) -> Self {
+    pub fn new(state: Rc<RefCell<State<'a>>>) -> Home<'a> {
         Self {
             state
         }
@@ -46,7 +46,7 @@ impl Home {
     }
 }
 
-impl Widget for &Home {
+impl Widget for &Home<'_> {
     fn render(self, area: Rect, buf: &mut Buffer)
     {
         let layout = Layout::default()
@@ -85,11 +85,11 @@ impl Widget for &Home {
             ])
             .split(main_area);
 
-        let title: Text = Text::raw(name_title.replace('.', " "))
+        let title: Text = Text::raw(NAME_TITLE.replace('.', " "))
             .centered()
             .blue();
 
-        let new_file_ui: Text = Text::raw(new_file)
+        let new_file_ui: Text = Text::raw(NEW_FILE)
             .centered()
             .bold()
             .blue();

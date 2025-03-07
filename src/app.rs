@@ -11,9 +11,9 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct App<'a> {
-    pub home: Home,
+    pub home: Home<'a>,
     pub editor: Editor<'a>,
-    pub state: Rc<RefCell<State>>,
+    pub state: Rc<RefCell<State<'a>>>,
 }
 
 impl Default for App<'_> {
