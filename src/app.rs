@@ -1,29 +1,28 @@
 use crate::editor::Editor;
+use crate::home::Home;
+use crate::state::State;
 use crossterm::event::{DisableMouseCapture, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{event, execute};
 use ratatui::{DefaultTerminal, Frame};
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
-use crate::home::Home;
 
 #[derive(Debug)]
 pub struct App<'a> {
-    pub current_screen: CurrentScreen,
     pub home: Home,
     pub editor: Editor<'a>,
-    pub exit: Rc<Cell<bool>>,
+    pub state: Rc<RefCell<State>>,
 }
 
 impl Default for App<'_> {
     fn default() -> Self {
-        let exit = Rc::new(Cell::new(false));
+        let state = Rc::new(RefCell::new(State::new(CurrentScreen::default())));
         Self {
-            current_screen: CurrentScreen::default(),
-            home: Home::default(),
-            editor: Editor::new(exit.clone()),
-            exit,
+            home: Home::new(state.clone()),
+            editor: Editor::new(state.clone()),
+            state,
         }
     }
 }
@@ -39,7 +38,7 @@ impl App<'_> {
     pub fn run(&mut self, terminal: &mut DefaultTerminal, file: Option<String>) -> io::Result<()> {
         self.editor.init(file)?;
 
-        while !self.exit.get() {
+        while !self.state.borrow().exit.get() {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
         }
@@ -68,7 +67,7 @@ impl App<'_> {
     }
 
     fn draw(&self, frame: &mut Frame) {
-        match &self.current_screen {
+        match &self.state.borrow().current_screen.borrow().clone() {
             CurrentScreen::Editor => frame.render_widget(&self.editor, frame.area()),
             CurrentScreen::Home => frame.render_widget(&self.home, frame.area())
         }
@@ -77,13 +76,11 @@ impl App<'_> {
     fn handle_events(&mut self) -> io::Result<()> {
         if let Event::Key(key) = event::read()? {
             if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::CONTROL {
-                self.exit.set(true)
+                self.state.borrow_mut().exit.set(true);
             }
-            match self.current_screen {
-                CurrentScreen::Home => (),
-                CurrentScreen::Editor => {
-                    self.editor.handle_input(key)?;
-                }
+            match self.state.borrow().current_screen.borrow().clone() {
+                CurrentScreen::Home => self.home.handle_input(key)?,
+                CurrentScreen::Editor => self.editor.handle_input(key)?,
             }
         }
         Ok(())

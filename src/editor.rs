@@ -1,6 +1,6 @@
 use ratatui::layout::Rect;
 use ratatui::prelude::Widget;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::fs::OpenOptions;
 use std::io;
 use std::io::{BufRead};
@@ -9,18 +9,19 @@ use std::rc::Rc;
 use crossterm::event::KeyEvent;
 use tui_textarea::TextArea;
 use crate::buffer::Buffer;
+use crate::state::State;
 
 #[derive(Debug)]
 pub struct Editor<'a> {
-    pub exit: Rc<Cell<bool>>,
+    pub state: Rc<RefCell<State>>,
     pub current_buffer: usize,
     pub buffer_list: Vec<Buffer<'a>>,
 }
 
 impl<'a> Editor<'a> {
-    pub fn new(exit: Rc<Cell<bool>>) -> Editor<'a> {
+    pub fn new(state: Rc<RefCell<State>>) -> Editor<'a> {
         Self {
-            exit,
+            state,
             current_buffer: 0,
             buffer_list: vec![],
         }

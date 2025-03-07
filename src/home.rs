@@ -1,6 +1,10 @@
+use std::cell::RefCell;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
-use ratatui::layout::Flex;
 use ratatui::prelude::*;
+use std::io;
+use std::rc::Rc;
+use crate::state::State;
 
 const name_title: &str = r##"
       ██    ██  ███████  ██       ██       ███████.
@@ -16,15 +20,30 @@ const name_title: &str = r##"
    ████   ████     ███████   ██    ██   ███████  ████████    ██
 "##;
 
-const new_file: &str = r##"+ New File       SPC n"##;
+const new_file: &str = r##"+ New File       CRL n"##;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Home {
-
+    pub state: Rc<RefCell<State>>
 }
 
 impl Home {
 
+    pub fn new(state: Rc<RefCell<State>>) -> Self {
+        Self {
+            state
+        }
+    }
+    pub fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
+        match key {
+            KeyEvent { code, modifiers, .. } => {
+                if code == KeyCode::Char('n') && modifiers == KeyModifiers::CONTROL {
+                    println!("Ctrl+N pressed!");
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Widget for &Home {
