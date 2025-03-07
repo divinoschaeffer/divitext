@@ -40,6 +40,7 @@ impl<'a> Editor<'a> {
             let buffer = Buffer::new(input, Option::from(filename.deref().to_owned()));
 
             self.buffer_list.push(buffer);
+            self.current_buffer = self.buffer_list.len() - 1;
         } else {
             let buffer = Buffer::new(TextArea::default(), None);
             self.buffer_list.push(buffer);
