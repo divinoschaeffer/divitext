@@ -20,4 +20,9 @@ impl<'a> State<'a> {
             exit: Rc::new(Cell::new(false)),
         }
     }
+
+    pub fn push_buffer(&self, buffer: Buffer<'a>) {
+        self.buffer_list.borrow_mut().push(buffer);
+        *self.current_buffer.borrow_mut() = self.buffer_list.borrow_mut().len() - 1;
+    }
 }

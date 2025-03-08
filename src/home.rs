@@ -1,10 +1,16 @@
 use std::cell::RefCell;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::buffer::Buffer;
+use ratatui::buffer::Buffer as RatBuffer;
 use ratatui::prelude::*;
 use std::io;
+use std::ops::Deref;
 use std::rc::Rc;
+use ratatui::layout::Flex;
+use ratatui::widgets::{Block, BorderType, Borders, Clear};
+use tui_textarea::TextArea;
+use crate::app::CurrentScreen;
 use crate::state::State;
+use crate::buffer::Buffer;
 
 const NAME_TITLE: &str = r##"
       ██    ██  ███████  ██       ██       ███████.
@@ -24,30 +30,71 @@ const NEW_FILE: &str = r##"+ New File       CRL n"##;
 
 #[derive(Debug)]
 pub struct Home<'a> {
-    pub state: Rc<RefCell<State<'a>>>
+    pub state: Rc<RefCell<State<'a>>>,
+    pub show_new_file_popup: bool,
+    pub valid_input: bool,
+    pub input: TextArea<'a>,
 }
 
 impl<'a> Home<'a> {
 
     pub fn new(state: Rc<RefCell<State<'a>>>) -> Home<'a> {
         Self {
-            state
+            state,
+            show_new_file_popup: false,
+            valid_input: false,
+            input: Self::text_area_popup("Filename"),
         }
     }
     pub fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
-        match key {
-            KeyEvent { code, modifiers, .. } => {
-                if code == KeyCode::Char('n') && modifiers == KeyModifiers::CONTROL {
-                    println!("Ctrl+N pressed!");
+        if self.show_new_file_popup {
+            match key {
+                KeyEvent { code: KeyCode::Enter, .. }
+                | KeyEvent { code: KeyCode::Char('m'), modifiers: KeyModifiers::CONTROL, .. } => {
+                    self.valid_input = true;
+                    self.show_new_file_popup = false;
+                    self.handle_create_file()?;
+                    self.valid_input = false;
+                }
+                _ => {
+                    self.input.input(key);
                 }
             }
+        } else {
+            match key {
+                KeyEvent { code: KeyCode::Char('n'), modifiers: KeyModifiers::CONTROL, .. } => {
+                    self.show_new_file_popup = true;
+                }
+                _ => {}
+            }
         }
+
         Ok(())
+    }
+
+    pub fn handle_create_file(&mut self) -> Result<(), io::Error> {
+        let state = self.state.borrow_mut();
+        let mut buffer = Buffer::default();
+        let filename = self.input.lines().first().unwrap();
+        buffer.init(filename.deref())?;
+        state.push_buffer(buffer);
+        state.current_screen.replace(CurrentScreen::Editor);
+        Ok(())
+    }
+
+    pub fn text_area_popup(title: &'a str) -> TextArea<'a> {
+        let mut text_area = TextArea::default();
+        text_area.set_block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(title)
+            );
+        text_area
     }
 }
 
 impl Widget for &Home<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer)
+    fn render(self, area: Rect, buf: &mut RatBuffer)
     {
         let layout = Layout::default()
             .direction(Direction::Vertical)
@@ -96,5 +143,19 @@ impl Widget for &Home<'_> {
 
         new_file_ui.render(actions_area[0], buf);
         title.render(title_area, buf);
+
+        if self.show_new_file_popup {
+            let area = popup_area(area, 50, 3);
+            Clear.render(area, buf);
+            self.input.render(area, buf);
+        }
     }
+}
+
+fn popup_area(area: Rect, max_x: u16, max_y: u16) -> Rect {
+    let vertical = Layout::vertical([Constraint::Max(max_y)]).flex(Flex::Center);
+    let horizontal = Layout::horizontal([Constraint::Max(max_x)]).flex(Flex::Center);
+    let [area] = vertical.areas(area);
+    let [area] = horizontal.areas(area);
+    area
 }

@@ -75,10 +75,15 @@ impl App<'_> {
 
     fn handle_events(&mut self) -> io::Result<()> {
         if let Event::Key(key) = event::read()? {
+            let mut exit = self.state.borrow_mut().exit.clone();
+
             if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::CONTROL {
-                self.state.borrow_mut().exit.set(true);
+                exit.set(true);
             }
-            match self.state.borrow().current_screen.borrow().clone() {
+
+            let current_screen = self.state.borrow().current_screen.borrow().clone();
+
+            match current_screen {
                 CurrentScreen::Home => self.home.handle_input(key)?,
                 CurrentScreen::Editor => self.editor.handle_input(key)?,
             }
