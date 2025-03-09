@@ -1,6 +1,8 @@
 use std::fs::OpenOptions;
 use std::{io, result};
 use std::io::{BufRead, BufReader};
+use ratatui::prelude::{Color, Style};
+use ratatui::widgets::{Block, Borders};
 use tui_textarea::TextArea;
 
 #[derive(Debug, Clone)]
@@ -32,8 +34,15 @@ impl<'a> Buffer<'a> {
             .open(&filename)?;
 
         let result = BufReader::new(file).lines().collect::<io::Result<_>>()?;
-        self.input = TextArea::new(result);
+        self.input = self.custom_text_area(result);
         self.filename = Some(String::from(filename));
         Ok(())
+    }
+
+    pub fn custom_text_area(&self, lines: Vec<String>) -> TextArea<'a>{
+        let mut text_area = TextArea::new(lines);
+        text_area.set_cursor_line_style(Style::default());
+        text_area.set_line_number_style(Style::default().fg(Color::DarkGray));
+        text_area
     }
 }
