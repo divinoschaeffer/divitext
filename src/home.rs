@@ -4,9 +4,10 @@ use ratatui::buffer::Buffer as RatBuffer;
 use ratatui::prelude::*;
 use std::io;
 use std::ops::Deref;
+use std::path::PathBuf;
 use std::rc::Rc;
 use ratatui::layout::Flex;
-use ratatui::widgets::{Block, BorderType, Borders, Clear};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use tui_textarea::TextArea;
 use crate::app::CurrentScreen;
 use crate::state::State;
@@ -28,12 +29,30 @@ const NAME_TITLE: &str = r##"
 
 const NEW_FILE: &str = r##"+ New File       CRL n"##;
 
+
+#[derive(Debug)]
+enum ErrorMessage {
+    FileNotFound,
+    FileAlreadyExists,
+}
+
+impl ErrorMessage {
+    fn message(&self) -> &'static str {
+        match self {
+            ErrorMessage::FileNotFound => "File not found",
+            ErrorMessage::FileAlreadyExists => "File already exists",
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Home<'a> {
     pub state: Rc<RefCell<State<'a>>>,
     pub show_new_file_popup: bool,
+    pub show_error_popup: bool,
     pub valid_input: bool,
     pub input: TextArea<'a>,
+    pub error_message: ErrorMessage,
 }
 
 impl<'a> Home<'a> {
@@ -42,12 +61,14 @@ impl<'a> Home<'a> {
         Self {
             state,
             show_new_file_popup: false,
+            show_error_popup: false,
             valid_input: false,
             input: Self::text_area_popup("Filename"),
+            error_message: ErrorMessage::FileNotFound,
         }
     }
     pub fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
-        if self.show_new_file_popup {
+        if self.show_new_file_popup || self.show_error_popup {
             match key {
                 KeyEvent { code: KeyCode::Enter, .. }
                 | KeyEvent { code: KeyCode::Char('m'), modifiers: KeyModifiers::CONTROL, .. } => {
@@ -58,6 +79,7 @@ impl<'a> Home<'a> {
                 },
                 KeyEvent { code: KeyCode::Esc, .. } => {
                     self.show_new_file_popup = false;
+                    self.show_error_popup = false;
                 }
                 _ => {
                     self.input.input(key);
@@ -79,6 +101,13 @@ impl<'a> Home<'a> {
         let state = self.state.borrow_mut();
         let mut buffer = Buffer::default();
         let filename = self.input.lines().first().unwrap();
+
+        if PathBuf::from(filename).is_file() {
+            self.error_message = ErrorMessage::FileAlreadyExists;
+            self.show_error_popup = true;
+            return Ok(());
+        }
+
         buffer.init(filename.deref())?;
         state.push_buffer(buffer);
         state.current_screen.replace(CurrentScreen::Editor);
@@ -147,10 +176,19 @@ impl Widget for &Home<'_> {
         new_file_ui.render(actions_area[0], buf);
         title.render(title_area, buf);
 
+        let area = popup_area(area, 50, 3);
+
         if self.show_new_file_popup {
-            let area = popup_area(area, 50, 3);
             Clear.render(area, buf);
             self.input.render(area, buf);
+        } else if self.show_error_popup {
+            Clear.render(area, buf);
+            let block = Block::default().borders(Borders::ALL).title("Error");
+            let text = Paragraph::new(self.error_message.message())
+                .block(block)
+                .centered()
+                .bold();
+            text.render(area, buf);
         }
     }
 }
