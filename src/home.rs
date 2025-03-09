@@ -55,6 +55,9 @@ impl<'a> Home<'a> {
                     self.show_new_file_popup = false;
                     self.handle_create_file()?;
                     self.valid_input = false;
+                },
+                KeyEvent { code: KeyCode::Esc, .. } => {
+                    self.show_new_file_popup = false;
                 }
                 _ => {
                     self.input.input(key);
