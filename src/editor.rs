@@ -35,15 +35,8 @@ impl<'a> Editor<'a> {
         let mut current_buffer = state.current_buffer.borrow_mut();
 
         if let Some(filename) = file_path.as_ref() {
-            let file = OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .read(true)
-                .write(true)
-                .open(filename)?;
-
-            let input: TextArea = io::BufReader::new(file).lines().collect::<io::Result<_>>()?;
-            let buffer = Buffer::new(input, Option::from(filename.deref().to_owned()));
+            let mut buffer = Buffer::default();
+            buffer.init(filename)?;
 
             buffer_list.push(buffer);
             *current_buffer = buffer_list.len() - 1;
