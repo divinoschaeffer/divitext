@@ -127,3 +127,81 @@ impl<'a> Widget for &Editor<'a>{
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::State;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use std::cell::RefCell;
+    use std::fs::{self, File};
+    use std::rc::Rc;
+    use tui_textarea::TextArea;
+
+    #[test]
+    fn test_editor_init_with_file() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut editor = Editor::new(Rc::clone(&state));
+
+        let file_path = "test_file.txt";
+        File::create(file_path).unwrap();
+        editor.init(Some(file_path.to_string())).unwrap();
+
+        let buffer_list = editor.get_buffer_list();
+        assert_eq!(buffer_list.len(), 1);
+        assert_eq!(buffer_list[0].filename, Some(file_path.to_string()));
+
+        fs::remove_file(file_path).unwrap();
+    }
+
+    #[test]
+    fn test_editor_init_without_file() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut editor = Editor::new(Rc::clone(&state));
+        editor.init(None).unwrap();
+
+        let buffer_list = editor.get_buffer_list();
+        assert_eq!(buffer_list.len(), 1);
+        assert!(buffer_list[0].filename.is_none());
+    }
+
+    #[test]
+    fn test_handle_input_save_file() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut editor = Editor::new(Rc::clone(&state));
+        let file_path = "test_save.txt";
+
+        File::create(file_path).unwrap();
+        editor.init(Some(file_path.to_string())).unwrap();
+
+        let key_event = KeyEvent {
+            code: KeyCode::Char(' '),
+            modifiers: KeyModifiers::CONTROL,
+            kind: crossterm::event::KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::empty(),
+        };
+
+        editor.handle_input(key_event).unwrap();
+        assert!(editor.show_success_save);
+
+        fs::remove_file(file_path).unwrap();
+    }
+
+    #[test]
+    fn test_handle_input_current_buffer() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut editor = Editor::new(Rc::clone(&state));
+        editor.init(None).unwrap();
+
+        let key_event = KeyEvent {
+            code: KeyCode::Char('a'),
+            modifiers: KeyModifiers::empty(),
+            kind: crossterm::event::KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::empty(),
+        };
+
+        editor.handle_input(key_event).unwrap();
+        let buffer = editor.get_current_buffer();
+        assert_eq!(buffer.input.lines(), vec!["a"]);
+    }
+}
