@@ -30,11 +30,18 @@ const NAME_TITLE: &str = r##"
 const NEW_FILE: &str = r##"+ New File       CRL n"##;
 const OPEN_FILE: &str = r##"- Open File      CRL o"##;
 
-
 #[derive(Debug)]
 pub enum ErrorMessage {
     FileNotFound,
     FileAlreadyExists,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum CurrentPopup {
+    None,
+    NewFile,
+    OpenFile,
+    Error,
 }
 
 impl ErrorMessage {
@@ -49,9 +56,8 @@ impl ErrorMessage {
 #[derive(Debug)]
 pub struct Home<'a> {
     pub state: Rc<RefCell<State<'a>>>,
-    pub show_new_file_popup: bool,
-    pub show_open_file_popup: bool,
-    pub show_error_popup: bool,
+    pub show_popup: bool,
+    pub current_popup: CurrentPopup,
     pub valid_input: bool,
     pub input: TextArea<'a>,
     pub error_message: ErrorMessage,
@@ -62,34 +68,37 @@ impl<'a> Home<'a> {
     pub fn new(state: Rc<RefCell<State<'a>>>) -> Home<'a> {
         Self {
             state,
-            show_new_file_popup: false,
-            show_open_file_popup: false,
-            show_error_popup: false,
             valid_input: false,
+            show_popup: false,
+            current_popup: CurrentPopup::None,
             input: Self::text_area_popup("Filename"),
             error_message: ErrorMessage::FileNotFound,
         }
     }
     pub fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
-        if self.show_new_file_popup || self.show_error_popup || self.show_open_file_popup {
+        if self.current_popup != CurrentPopup::None {
             match key {
                 KeyEvent { code: KeyCode::Enter, .. }
                 | KeyEvent { code: KeyCode::Char('m'), modifiers: KeyModifiers::CONTROL, .. } => {
                     self.valid_input = true;
-                    if self.show_new_file_popup {
-                        self.show_new_file_popup = false;
-                        self.handle_create_file()?;
-                    } else if self.show_open_file_popup {
-                        self.show_open_file_popup = false;
-                        self.handle_open_file()?;
+                    match self.current_popup {
+                        CurrentPopup::None => (),
+                        CurrentPopup::OpenFile => {
+                            self.handle_open_file()?;
+                            self.show_popup = false;
+                        },
+                        CurrentPopup::NewFile => {
+                            self.handle_create_file()?;
+                            self.show_popup = false;
+                        },
+                        CurrentPopup::Error => ()
                     }
                     self.reset_input();
                     self.valid_input = false;
                 },
                 KeyEvent { code: KeyCode::Esc, .. } => {
-                    self.show_new_file_popup = false;
-                    self.show_error_popup = false;
-                    self.show_open_file_popup = false;
+                    self.show_popup = false;
+                    self.current_popup = CurrentPopup::None;
                 }
                 _ => {
                     self.input.input(key);
@@ -98,10 +107,12 @@ impl<'a> Home<'a> {
         } else {
             match key {
                 KeyEvent { code: KeyCode::Char('n'), modifiers: KeyModifiers::CONTROL, .. } => {
-                    self.show_new_file_popup = true;
+                    self.show_popup = true;
+                    self.current_popup = CurrentPopup::NewFile;
                 },
                 KeyEvent { code: KeyCode::Char('o'), modifiers: KeyModifiers::CONTROL, .. } => {
-                    self.show_open_file_popup = true;
+                    self.show_popup = true;
+                    self.current_popup = CurrentPopup::OpenFile;
                 }
                 _ => {}
             }
@@ -113,11 +124,13 @@ impl<'a> Home<'a> {
     pub fn handle_open_file(&mut self) -> Result<(), io::Error> {
         let state = self.state.borrow_mut();
         let mut buffer = Buffer::default();
+
         let filename = self.input.lines().first().unwrap();
 
         if !PathBuf::from(filename).is_file() {
             self.error_message = ErrorMessage::FileNotFound;
-            self.show_error_popup = true;
+            self.show_popup = true;
+            self.current_popup = CurrentPopup::Error;
             return Ok(());
         }
 
@@ -134,7 +147,8 @@ impl<'a> Home<'a> {
 
         if PathBuf::from(filename).is_file() {
             self.error_message = ErrorMessage::FileAlreadyExists;
-            self.show_error_popup = true;
+            self.show_popup = true;
+            self.current_popup = CurrentPopup::Error;
             return Ok(());
         }
 
@@ -221,17 +235,21 @@ impl Widget for &Home<'_> {
 
         let area = popup_area(area, 50, 3);
 
-        if self.show_new_file_popup || self.show_open_file_popup {
-            Clear.render(area, buf);
-            self.input.render(area, buf);
-        } else if self.show_error_popup {
-            Clear.render(area, buf);
-            let block = Block::default().borders(Borders::ALL);
-            let text = Paragraph::new(self.error_message.message())
-                .block(block)
-                .centered()
-                .bold();
-            text.render(area, buf);
+        match self.current_popup {
+            CurrentPopup::NewFile | CurrentPopup::OpenFile => {
+                Clear.render(area, buf);
+                self.input.render(area, buf);
+            },
+            CurrentPopup::Error => {
+                Clear.render(area, buf);
+                let block = Block::default().borders(Borders::ALL);
+                let text = Paragraph::new(self.error_message.message())
+                    .block(block)
+                    .centered()
+                    .bold();
+                text.render(area, buf);
+            },
+            _ => ()
         }
     }
 }

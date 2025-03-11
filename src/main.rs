@@ -38,7 +38,7 @@ fn init_logger() {
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     init_logger();
-    log!(Level::Info,"Welcome to Divino editor!");
+    log!(Level::Info,"Welcome to Divitext!");
 
     let file = args.first().cloned();
 
