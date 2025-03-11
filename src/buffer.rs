@@ -1,178 +1,90 @@
-#[derive(Debug)]
-pub struct Buffer {
-    pub content: String,
-    pub point: Mark,
-    pub mark_list: Vec<Mark>,
-    pub file_name: Option<String>,
-    pub buffer_type: BufferType,
+use std::fs::OpenOptions;
+use std::{io, result};
+use std::io::{BufRead, BufReader};
+use ratatui::prelude::{Color, Style};
+use ratatui::widgets::{Block, Borders};
+use tui_textarea::TextArea;
+
+#[derive(Debug, Clone)]
+pub struct Buffer<'a>{
+    pub input: TextArea<'a>,
+    pub filename: Option<String>,
 }
 
-#[derive(Debug, Default)]
-pub enum BufferType {
-    #[default]
-    FILE,
-    OPTION
-}
-
-#[derive(Debug)]
-pub struct Mark {
-    pub name: String,
-    pub buffer_position: u16,
-}
-
-impl Default for Buffer {
-    fn default() -> Self {
+impl<'a> Default for Buffer<'a>{
+    fn default() -> Buffer<'a>{
         Buffer {
-            content: String::new(),
-            point: Mark::new(String::from("Point"), 0),
-            mark_list: vec![],
-            file_name: None,
-            buffer_type: BufferType::FILE,
+            input: TextArea::default(),
+            filename: None,
         }
     }
 }
 
-impl Buffer {
-    pub fn get_position_from_line_col(&self, line_index: u16, col: u16) -> u16 {
-        let mut position = 0;
-
-        for (i, line) in self.content.lines().enumerate() {
-            let line_length = line.chars().count() as u16;
-
-            if i == line_index as usize {
-                return position + col.min(line_length);
-            }
-
-            position += line_length + 1;
-        }
-
-        position
+impl<'a> Buffer<'a> {
+    pub fn new(input: TextArea<'a>, filename: Option<String>) -> Buffer<'a> {
+        Buffer { input, filename }
     }
 
+    pub fn init(&mut self, filename: &str) -> Result<(), io::Error> {
+        let file = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(&filename)?;
 
-    pub fn get_closest_column(&self, line_index: u16, col: u16) -> u16 {
-        if let Some(line) = self.content.split('\n').nth(line_index as usize) {
-            col.min(line.chars().count() as u16 - 1)
-        } else {
-            0
-        }
-    }
-
-    pub fn get_last_column(&self, line_index: u16) -> u16 {
-        let lines: Vec<&str> = self.content.split('\n').collect();
-
-        if let Some(line) = lines.get(line_index as usize) {
-            let base_length = line.chars().count() as u16;
-            if line_index < (lines.len() as u16 - 1) {
-                base_length + 1
-            } else {
-                base_length
-            }
-        } else {
-            0
-        }
-    }
-
-    pub fn line_count(&self) -> u16 {
-        self.content.split('\n').count() as u16
-    }
-
-    pub fn move_point_to(&mut self, line_offset: u16, col_offset: u16) {
-        let new_position = self.get_position_from_line_col(line_offset, col_offset);
-        self.point.buffer_position = new_position;
-    }
-
-    pub fn get_point_line_and_column(&self) -> Option<(u16, u16)> {
-        let mut current_pos = 0;
-
-        for (line_index, line) in self.content.split('\n').enumerate() {
-            let char_count = line.chars().count() as u16;
-
-            if self.point.buffer_position <= current_pos + char_count {
-                return Some((line_index as u16, self.point.buffer_position - current_pos));
-            }
-
-            current_pos += char_count + 1;
-        }
-
-        None
-    }
-
-    pub fn write_char(&mut self, c: char) -> Result<(), std::io::Error> {
-        let position = self.point.buffer_position as usize;
-        if position >= self.content.chars().count() {
-            self.content.push(c);
-        } else {
-            let mut new_content = String::with_capacity(self.content.len() + c.len_utf8());
-            let mut chars = self.content.chars();
-
-            for (i, ch) in chars.by_ref().enumerate() {
-                if i == position {
-                    new_content.push(c);
-                }
-                new_content.push(ch);
-            }
-
-            new_content.extend(chars);
-
-            self.content = new_content;
-        }
+        let result = BufReader::new(file).lines().collect::<io::Result<_>>()?;
+        self.input = self.custom_text_area(result);
+        self.filename = Some(String::from(filename));
         Ok(())
     }
 
-    pub fn get_last_visible_char_position(&self) -> Vec<Option<u16>> {
-        self.content
-            .split('\n')
-            .map(|line| {
-                let char_count = line.chars().count() as u16;
-                if char_count == 0 { None } else { Some(char_count - 1) }
-            })
-            .collect()
-    }
-
-    pub fn remove_char(&mut self) -> Result<(), std::io::Error> {
-        let position = self.point.buffer_position;
-        self.content.remove(position as usize);
-        Ok(())
-    }
-
-    pub fn get_buffer_part(&self, line1: u16, line2: u16) -> Result<String, std::io::Error> {
-        let lines: Vec<&str> = self.content.split('\n').collect();
-
-        if line1 as usize >= lines.len() {
-            return Ok(String::new());
-        }
-
-        let end = (line2 as usize).min(lines.len());
-
-        let buffer_part = lines[line1 as usize..end].join("\n");
-
-        Ok(buffer_part)
+    pub fn custom_text_area(&self, lines: Vec<String>) -> TextArea<'a>{
+        let mut text_area = TextArea::new(lines);
+        text_area.set_cursor_line_style(Style::default());
+        text_area.set_line_number_style(Style::default().fg(Color::DarkGray));
+        text_area
     }
 }
 
-pub enum MarkerMovement {
-    Left,
-    Right,
-}
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
 
-impl Mark {
-    pub fn new(
-        name: String,
-        buffer_position: u16,
-    ) -> Mark {
-        Mark {
-            name,
-            buffer_position,
-        }
+    #[test]
+    fn test_buffer_default() {
+        let buffer = Buffer::default();
+        assert!(buffer.filename.is_none());
     }
-}
 
-impl Default for Mark {
-    fn default() -> Self {
-        Self {
-            name: String::from("Point"),
-            buffer_position: 0,
-        }
+    #[test]
+    fn test_buffer_new() {
+        let textarea = TextArea::new(vec!["Hello, world!".to_string()]);
+        let buffer = Buffer::new(textarea.clone(), Some("test.txt".to_string()));
+        assert_eq!(buffer.filename, Some("test.txt".to_string()));
+        assert_eq!(buffer.input.lines(), textarea.lines());
     }
+
+    #[test]
+    fn test_buffer_init() {
+        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        writeln!(temp_file, "Hello, world!").expect("Failed to write to temp file");
+        let path = temp_file.path().to_str().unwrap().to_string();
+
+        let mut buffer = Buffer::default();
+        assert!(buffer.init(&path).is_ok());
+        assert_eq!(buffer.filename, Some(path));
+        assert_eq!(buffer.input.lines(), vec!["Hello, world!".to_string()]);
+    }
+
+    #[test]
+    fn test_custom_text_area() {
+        let buffer = Buffer::default();
+        let lines = vec!["Line 1".to_string(), "Line 2".to_string()];
+        let text_area = buffer.custom_text_area(lines.clone());
+        assert_eq!(text_area.lines(), lines);
+    }
+
 }

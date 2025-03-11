@@ -1,423 +1,207 @@
-use crate::buffer::{Buffer, BufferType, Mark};
-use crate::display::Display;
-use crate::editor::EditorMode::{Normal, SaveMode};
-use crossterm::cursor::{MoveTo, RestorePosition, SavePosition};
-use crossterm::event::Event::Key;
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, DisableLineWrap, EnterAlternateScreen, LeaveAlternateScreen};
-use crossterm::{cursor, event, execute, ExecutableCommand};
-use std::cmp::PartialEq;
+use crate::buffer::Buffer;
+use crate::state::State;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::prelude::Widget;
+use ratatui::style::Stylize;
+use ratatui::text::Text;
+use std::cell::RefCell;
 use std::fs::OpenOptions;
-use std::io::{Error, Read, Write};
-use std::time::Duration;
-use log::{error, info};
+use std::io;
+use std::io::{BufRead, Write};
+use std::ops::Deref;
+use std::rc::Rc;
+use tui_textarea::TextArea;
 
-const TAB_SIZE: u16 = 4;
+const FILE_SUCCESSFULLY_SAVED:&str = "File saved successfully !";
 
 #[derive(Debug)]
-pub struct Editor {
-    pub display: Display,
-    pub exit: bool,
-    pub current_buffer: usize,
-    pub previous_buffer: usize,
-    pub buffer_list: Vec<Buffer>,
-    pub mode: EditorMode
+pub struct Editor<'a> {
+    pub state: Rc<RefCell<State<'a>>>,
+    pub show_success_save: bool,
 }
 
-#[derive(PartialEq)]
-pub enum CursorMovement {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
-#[derive(Debug, PartialEq, Default)]
-pub enum EditorMode {
-    #[default]
-    Normal,
-    SaveMode
-}
-
-impl Default for Editor {
-    fn default() -> Self {
-        let option_buffer = Self::init_option_buffer();
+impl<'a> Editor<'a> {
+    pub fn new(state: Rc<RefCell<State<'a>>>) -> Editor<'a> {
         Self {
-            display: Display::default(),
-            exit: false,
-            previous_buffer: 0,
-            current_buffer: 1,
-            buffer_list: vec! [option_buffer, Buffer::default()],
-            mode: Normal,
+            state,
+            show_success_save: false,
+        }
+    }
+
+    pub fn init(&mut self, file_path: Option<String>) ->Result<(), io::Error> {
+        let state = self.state.borrow_mut();
+        let mut buffer_list = state.buffer_list.borrow_mut();
+        let mut current_buffer = state.current_buffer.borrow_mut();
+
+        if let Some(filename) = file_path.as_ref() {
+            let mut buffer = Buffer::default();
+            buffer.init(filename)?;
+
+            buffer_list.push(buffer);
+            *current_buffer = buffer_list.len() - 1;
+        } else {
+            let buffer = Buffer::new(TextArea::default(), None);
+            buffer_list.push(buffer);
+        }
+        Ok(())
+    }
+
+    pub fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
+        match key {
+            KeyEvent { code: KeyCode::Char(' '), modifiers: KeyModifiers::CONTROL | KeyModifiers::SUPER, .. } => {
+                self.save_current_buffer()?;
+                self.show_success_save = true;
+            }
+            _ => {
+                if self.show_success_save {
+                    self.show_success_save = false;
+                }
+                self.handle_input_current_buffer(key)
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn handle_input_current_buffer(&self, key: KeyEvent) {
+        let state = self.state.borrow_mut();
+        let mut buffer_list = state.buffer_list.borrow_mut();
+        let mut current_buffer = state.current_buffer.borrow_mut();
+        buffer_list[*current_buffer].input.input(key);
+    }
+
+    pub fn get_current_buffer(&self) -> Buffer {
+        let state = self.state.borrow();
+        let mut buffer_list = state.buffer_list.borrow();
+        let mut current_buffer = state.current_buffer.borrow();
+        buffer_list[*current_buffer].clone()
+    }
+
+    pub fn get_buffer_list(&self) -> Vec<Buffer> {
+        let state = self.state.borrow();
+        let list = state.buffer_list.borrow().deref().clone();
+        list
+    }
+
+    pub fn save_current_buffer(&self) -> Result<(), io::Error> {
+        let state = self.state.borrow();
+        let buffer_list = state.buffer_list.borrow();
+        let current_buffer = state.current_buffer.borrow();
+
+        let content  = buffer_list[*current_buffer].input.lines().join("\n");
+        let filename = buffer_list[*current_buffer].clone().filename.unwrap().clone();
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(filename)?;
+
+        file.write_all(content.as_bytes())?;
+        Ok(())
+    }
+}
+
+impl<'a> Widget for &Editor<'a>{
+    fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer)
+    {
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Fill(1),
+                Constraint::Max(1),
+            ])
+            .split(area);
+
+        if !self.get_buffer_list().is_empty() {
+            self.get_current_buffer().input.render(layout[0], buf);
+        }
+        if self.show_success_save {
+            let message = Text::raw(FILE_SUCCESSFULLY_SAVED)
+                .black()
+                .on_white()
+                .bold()
+                .centered();
+            message.render(layout[1], buf);
         }
     }
 }
 
-impl Editor {
-    pub fn init(&mut self, file_path: Option<String>) ->Result<(), Error> {
-        if let Some(file) = file_path.as_ref() {
-            let mut file = OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .read(true)
-                .write(true)
-                .open(file)?;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::State;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use std::cell::RefCell;
+    use std::fs::{self, File};
+    use std::rc::Rc;
+    use tui_textarea::TextArea;
 
-            let mut content = String::new();
-            file.read_to_string(&mut content)?;
+    #[test]
+    fn test_editor_init_with_file() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut editor = Editor::new(Rc::clone(&state));
 
-            if let Some(buffer) = self.buffer_list.get_mut(self.current_buffer) {
-                buffer.content = content;
-                buffer.file_name = file_path.clone();
-                info!("File {:?} is loaded or created", buffer.file_name);
-            } else {
-                error!("Invalid buffer index: {}", self.current_buffer);
-            }
-        }
-        Ok(())
+        let file_path = "test_file.txt";
+        File::create(file_path).unwrap();
+        editor.init(Some(file_path.to_string())).unwrap();
+
+        let buffer_list = editor.get_buffer_list();
+        assert_eq!(buffer_list.len(), 1);
+        assert_eq!(buffer_list[0].filename, Some(file_path.to_string()));
+
+        fs::remove_file(file_path).unwrap();
     }
 
-    pub fn init_option_buffer() -> Buffer {
-        Buffer {
-            content: String::new(),
-            point: Mark::new(String::from("Point"), 0),
-            mark_list: vec![],
-            file_name: None,
-            buffer_type: BufferType::OPTION,
-        }
+    #[test]
+    fn test_editor_init_without_file() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut editor = Editor::new(Rc::clone(&state));
+        editor.init(None).unwrap();
+
+        let buffer_list = editor.get_buffer_list();
+        assert_eq!(buffer_list.len(), 1);
+        assert!(buffer_list[0].filename.is_none());
     }
 
-    pub fn run(&mut self) -> Result<(), Error> {
-        self.display.stdout.execute(EnterAlternateScreen)?;
-        enable_raw_mode()?;
-        self.display.stdout.execute(DisableLineWrap)?;
-        self.display_current_buffer()?;
-        self.display.stdout.execute(MoveTo(0, 0))?;
-        self.handle_key_events()?;
-        disable_raw_mode()?;
-        self.display.stdout.execute(LeaveAlternateScreen)?;
-        Ok(())
+    #[test]
+    fn test_handle_input_save_file() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut editor = Editor::new(Rc::clone(&state));
+        let file_path = "test_save.txt";
+
+        File::create(file_path).unwrap();
+        editor.init(Some(file_path.to_string())).unwrap();
+
+        let key_event = KeyEvent {
+            code: KeyCode::Char(' '),
+            modifiers: KeyModifiers::CONTROL,
+            kind: crossterm::event::KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::empty(),
+        };
+
+        editor.handle_input(key_event).unwrap();
+        assert!(editor.show_success_save);
+
+        fs::remove_file(file_path).unwrap();
     }
 
-    pub fn handle_key_events(&mut self) -> Result<(), Error> {
-        loop {
-            if event::poll(Duration::from_millis(100))? {
-                match event::read()? {
-                    Event::Resize(width, height) => {
-                        self.handle_resizing(width, height)?;
-                    }
-                    Key(KeyEvent { code, modifiers, .. }) => {
-                        match code {
-                            KeyCode::Char('q') if modifiers.contains(KeyModifiers::CONTROL) => {
-                                self.exit = true;
-                            },
-                            KeyCode::Char('x') if modifiers.contains(KeyModifiers::CONTROL) && self.mode == Normal => {
-                                self.handle_save_mode_input()?;
-                            }
-                            KeyCode::Char(c) if modifiers.is_empty() || modifiers ==KeyModifiers::SHIFT => {
-                                self.handle_char_input(c)?;
-                            }
-                            KeyCode::Right => self.handle_cursor_movement(CursorMovement::Right)?,
-                            KeyCode::Left => self.handle_cursor_movement(CursorMovement::Left)?,
-                            KeyCode::Up => self.handle_cursor_movement(CursorMovement::Up)?,
-                            KeyCode::Down => self.handle_cursor_movement(CursorMovement::Down)?,
-                            KeyCode::Backspace => self.handle_backspace_input()?,
-                            KeyCode::Enter => self.handle_enter_input()?,
-                            KeyCode::Tab => self.handle_tab_input()?,
-                            _ => (),
-                        }
-                    }
-                    _ => (),
-                }
-            }
-            if self.exit {
-                break;
-            }
-        }
-        Ok(())
-    }
+    #[test]
+    fn test_handle_input_current_buffer() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut editor = Editor::new(Rc::clone(&state));
+        editor.init(None).unwrap();
 
-    fn handle_resizing(&mut self, width: u16, height: u16) -> Result<(), Error> {
-        self.display.height = height;
-        self.display.width = width;
-        if let Some((row, col)) = self.buffer_list[self.current_buffer].get_point_line_and_column() {
-            self.display.clear_and_print(self.buffer_list[self.current_buffer].content.clone())?;
-            execute!(self.display.stdout, MoveTo(col, row))?;
-        }
-        Ok(())
-    }
+        let key_event = KeyEvent {
+            code: KeyCode::Char('a'),
+            modifiers: KeyModifiers::empty(),
+            kind: crossterm::event::KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::empty(),
+        };
 
-    pub fn handle_cursor_movement(&mut self, movement: CursorMovement) -> Result<(), Error> {
-        let (col, row) = cursor::position()?;
-        match movement {
-            CursorMovement::Up => {
-                self.handle_cursor_up(col, row)?;
-            }
-            CursorMovement::Down => {
-                self.handle_cursor_down(col, row)?;
-            }
-            CursorMovement::Left => {
-                self.handle_cursor_left(col, row)?;
-            }
-            CursorMovement::Right => {
-                self.handle_cursor_right(col, row)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn handle_cursor_right(&mut self, col: u16, row: u16) -> Result<(), Error> {
-        if let Some((new_row, new_col)) = self.get_cursor_valid_position(
-            row + self.display.first_line_visible,
-            col + 1,
-            CursorMovement::Right
-        ) {
-            self.buffer_list[self.current_buffer].move_point_to(new_row, new_col);
-            if new_row - self.display.first_line_visible >= self.display.height {
-                self.display.first_line_visible += 1;
-            }
-            self.display_current_buffer()?;
-            self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
-        }
-        Ok(())
-    }
-
-    fn handle_cursor_left(&mut self, col: u16, row: u16) -> Result<(), Error> {
-        if col >= 1 {
-            if let Some((new_row, new_col)) = self.get_cursor_valid_position(
-                row + self.display.first_line_visible,
-                col - 1,
-                CursorMovement::Left
-            ) {
-                self.buffer_list[self.current_buffer].move_point_to(new_row, new_col);
-                self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
-            }
-        }
-        Ok(())
-    }
-
-    fn handle_cursor_down(&mut self, col: u16, row: u16) -> Result<(), Error> {
-        if let Some((new_row, new_col)) = self.get_cursor_valid_position(
-            row + self.display.first_line_visible + 1,
-            col,
-            CursorMovement::Down
-        ) {
-            self.buffer_list[self.current_buffer].move_point_to(new_row, new_col);
-            if new_row - self.display.first_line_visible >= self.display.height {
-                self.display.first_line_visible += 1;
-            }
-            self.display_current_buffer()?;
-            self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
-        }
-        Ok(())
-    }
-
-    fn handle_cursor_up(&mut self, col: u16, row: u16) -> Result<(), Error> {
-        if row >= 1 || self.display.first_line_visible != 0 {
-            if let Some((new_row, new_col)) = self.get_cursor_valid_position(
-                (self.display.first_line_visible + row) - 1,
-                col,
-                CursorMovement::Up
-            ) {
-                if new_row < self.display.first_line_visible {
-                    self.display.first_line_visible -= 1;
-                }
-                self.buffer_list[self.current_buffer].move_point_to(new_row, new_col);
-                self.display_current_buffer()?;
-                self.display.stdout.execute(MoveTo(new_col, new_row - self.display.first_line_visible))?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn get_cursor_valid_position(&self, row: u16, col: u16, movement: CursorMovement) -> Option<(u16, u16)> {
-        let occupied_positions: Vec<Option<u16>> = self.buffer_list[self.current_buffer].get_last_visible_char_position();
-        if occupied_positions.is_empty() {
-            return Some((row, col))
-        }
-
-        if row >= occupied_positions.len() as u16 {
-            return None;
-        }
-
-        match occupied_positions.get(row as usize) {
-            Some(Some(occupied)) => {
-                if col <= occupied + 1 {
-                    Some((row, col))
-                } else {
-                    match movement {
-                        CursorMovement::Up => {
-                            Some((row, *occupied))
-                        },
-                        CursorMovement::Down => {
-                            Some((row, *occupied))
-                        },
-                        CursorMovement::Left => {
-                            if row > 0 {
-                                let last_position = occupied_positions[(row - 1) as usize];
-                                if let Some(last_position) = last_position {
-                                    Some((row - 1, last_position))
-                                } else {
-                                    Some((row - 1, 0))
-                                }
-                            } else {
-                                None
-                            }
-                        },
-                        CursorMovement::Right => {
-                            if (row + 1) < occupied_positions.len() as u16 {
-                                Some((row + 1, 0))
-                            } else {
-                                None
-                            }
-                        }
-                    }
-                }
-            },
-            Some(None) => {
-                if (row + 1) < occupied_positions.len() as u16 && movement == CursorMovement::Right {
-                    Some((row + 1, 0))
-                } else {
-                    Some((row, 0))
-                }
-            },
-            None => None,
-        }
-    }
-
-    pub fn is_cursor_position_valid(&self, row: u16, col: u16) -> bool {
-        let occupied_positions: Vec<Option<u16>> = self.buffer_list[self.current_buffer].get_last_visible_char_position();
-
-        if occupied_positions.is_empty() {
-            return true;
-        }
-
-        if row >= occupied_positions.len() as u16 {
-            return false;
-        }
-
-        match occupied_positions.get(row as usize) {
-            Some(Some(occupied)) => col <= occupied + 1,
-            Some(None) => col == 0,
-            None => false,
-        }
-    }
-
-    pub fn handle_char_input(&mut self, c: char) -> Result<(), Error> {
-        self.buffer_list[self.current_buffer].write_char(c)?;
-        let (col, row) = cursor::position()?;
-        self.display_current_buffer()?;
-        self.buffer_list[self.current_buffer].move_point_to(row + self.display.first_line_visible, col + 1);
-        self.display.stdout.execute(MoveTo(col + 1, row))?;
-        Ok(())
-    }
-
-    pub fn handle_enter_input(&mut self) -> Result<(), Error> {
-        if self.mode == Normal {
-            let (_, row) = cursor::position()?;
-            self.buffer_list[self.current_buffer].write_char('\n')?;
-            if row + 1 == self.display.height {
-                self.display.first_line_visible += 1;
-            }
-            self.buffer_list[self.current_buffer].move_point_to(self.display.first_line_visible + row + 1, 0);
-            self.display_current_buffer()?;
-            self.display.stdout.execute(MoveTo(0, row + 1))?;
-        } else if self.mode == SaveMode {
-            self.buffer_list[self.previous_buffer].file_name = Some(self.buffer_list[0].content.clone());
-            self.current_buffer = self.previous_buffer;
-            self.previous_buffer = 0;
-            self.handle_save_file()?;
-        }
-        Ok(())
-    }
-
-    pub fn handle_backspace_input(&mut self) -> Result<(), Error> {
-        let (col, row) = cursor::position()?;
-        let first_visible_row = self.display.first_line_visible;
-        if row > 0 && col == 0 { // remove last character from previous line
-            let new_row = row - 1;
-            let new_col = self.buffer_list[self.current_buffer].get_last_column(new_row);
-            self.buffer_list[self.current_buffer].move_point_to(new_row + first_visible_row, new_col);
-            self.buffer_list[self.current_buffer].remove_char()?;
-            self.display_current_buffer()?;
-            self.display.stdout.execute(MoveTo(new_col - 1, new_row))?;
-        } else if col > 0 {
-            self.buffer_list[self.current_buffer].move_point_to(row + first_visible_row, col - 1);
-            self.buffer_list[self.current_buffer].remove_char()?;
-            self.display_current_buffer()?;
-            self.display.stdout.execute(MoveTo(col -1, row))?;
-        }
-        Ok(())
-    }
-
-    pub fn handle_tab_input(&mut self) -> Result<(), Error> {
-        let (col, row) = cursor::position()?;
-        for _i in 0..TAB_SIZE {
-            self.buffer_list[self.current_buffer].write_char(' ')?
-        }
-        self.display_current_buffer()?;
-        self.buffer_list[self.current_buffer].move_point_to(row + self.display.first_line_visible, col + TAB_SIZE);
-        self.display.stdout.execute(MoveTo(col + TAB_SIZE, row))?;
-        Ok(())
-    }
-
-    pub fn display_current_buffer(&mut self) -> Result<(), Error> {
-        let (start, end) = self.display.get_displayable_lines()?;
-        let part = self.buffer_list[self.current_buffer].get_buffer_part(start, end)?;
-        self.display.clear_and_print(part)?;
-        Ok(())
-    }
-
-    pub fn get_buffer_row(cursor_row: u16, visible_row: u16) -> u16 {
-        cursor_row + visible_row
-    }
-
-    pub fn handle_save_mode_input(&mut self) -> Result<(), Error> {
-        execute!(self.display.stdout, SavePosition)?;
-        self.display.print_save_validation()?;
-
-        loop {
-            match event::read()? {
-                Key(KeyEvent { code: KeyCode::Char('Y') | KeyCode::Char('y'), .. }) => {
-                    return self.handle_save_file();
-                }
-                Key(KeyEvent { code: KeyCode::Char('N') | KeyCode::Char('n'), .. }) => {
-                    self.handle_cancel_save()?;
-                    execute!(self.display.stdout, RestorePosition)?;
-                    return Ok(());
-                }
-                _ => continue,
-            }
-        }
-    }
-
-
-    pub fn handle_save_file(&mut self) -> Result<(), Error> {
-        self.display.clear_all_display()?;
-        if self.current_buffer != 0 {
-            if let Some(filename) = self.buffer_list[self.current_buffer].file_name.clone() {
-                let mut file  = OpenOptions::new()
-                    .create(true)
-                    .write(true)
-                    .truncate(true)
-                    .open(filename)?;
-                file.write_all(self.buffer_list[self.current_buffer].content.clone().as_bytes())?;
-                self.mode = Normal;
-                self.display_current_buffer()?;
-                execute!(self.display.stdout, RestorePosition)?;
-            } else {
-                self.previous_buffer = self.current_buffer;
-                self.current_buffer = 0;
-                self.mode = SaveMode;
-                self.display.print_filename_input()?;
-                execute!(self.display.stdout, MoveTo(0, 0))?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn handle_cancel_save(&mut self) -> Result<(), Error> {
-        self.display_current_buffer()?;
-        Ok(())
+        editor.handle_input(key_event).unwrap();
+        let buffer = editor.get_current_buffer();
+        assert_eq!(buffer.input.lines(), vec!["a"]);
     }
 }
