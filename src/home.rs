@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer as RatBuffer;
 use ratatui::layout::Flex;
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use std::cell::RefCell;
 use std::io;
 use std::ops::Deref;
@@ -267,9 +267,9 @@ mod tests {
     use super::*;
     use crate::app::CurrentScreen;
     use crate::state::State;
+    use crossterm::event::{KeyEventKind, KeyEventState};
     use std::fs::File;
     use std::io::Write;
-    use crossterm::event::{KeyEventKind, KeyEventState};
     use tempfile::tempdir;
 
     #[test]

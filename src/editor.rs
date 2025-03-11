@@ -8,7 +8,7 @@ use ratatui::text::Text;
 use std::cell::RefCell;
 use std::fs::OpenOptions;
 use std::io;
-use std::io::{BufRead, Write};
+use std::io::{Write};
 use std::ops::Deref;
 use std::rc::Rc;
 use tui_textarea::TextArea;
@@ -67,14 +67,14 @@ impl<'a> Editor<'a> {
     pub fn handle_input_current_buffer(&self, key: KeyEvent) {
         let state = self.state.borrow_mut();
         let mut buffer_list = state.buffer_list.borrow_mut();
-        let mut current_buffer = state.current_buffer.borrow_mut();
+        let current_buffer = state.current_buffer.borrow_mut();
         buffer_list[*current_buffer].input.input(key);
     }
 
     pub fn get_current_buffer(&self) -> Buffer {
         let state = self.state.borrow();
-        let mut buffer_list = state.buffer_list.borrow();
-        let mut current_buffer = state.current_buffer.borrow();
+        let buffer_list = state.buffer_list.borrow();
+        let current_buffer = state.current_buffer.borrow();
         buffer_list[*current_buffer].clone()
     }
 
@@ -103,7 +103,7 @@ impl<'a> Editor<'a> {
     }
 }
 
-impl<'a> Widget for &Editor<'a>{
+impl Widget for &Editor<'_>{
     fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer)
     {
         let layout = Layout::default()

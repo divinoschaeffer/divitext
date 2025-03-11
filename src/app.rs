@@ -79,7 +79,7 @@ impl App<'_> {
 
     fn handle_events(&mut self) -> io::Result<()> {
         if let Event::Key(key) = event::read()? {
-            let mut exit = self.state.borrow_mut().exit.clone();
+            let exit = self.state.borrow_mut().exit.clone();
 
             if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::CONTROL {
                 exit.set(true);
