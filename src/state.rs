@@ -11,6 +11,17 @@ pub struct State<'a> {
     pub exit: Rc<Cell<bool>>,
 }
 
+impl<'a> Default for State<'a> {
+    fn default() -> State<'a> {
+        Self {
+            current_screen: Rc::new(RefCell::new(CurrentScreen::Home)),
+            current_buffer: Rc::new(RefCell::new(0)),
+            buffer_list: Rc::new(RefCell::new(Vec::new())),
+            exit: Rc::new(Cell::new(false)),
+        }
+    }
+}
+
 impl<'a> State<'a> {
     pub fn new(current_screen: CurrentScreen) -> State<'a> {
         Self {

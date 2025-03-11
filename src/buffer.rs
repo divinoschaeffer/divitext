@@ -46,3 +46,45 @@ impl<'a> Buffer<'a> {
         text_area
     }
 }
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_buffer_default() {
+        let buffer = Buffer::default();
+        assert!(buffer.filename.is_none());
+    }
+
+    #[test]
+    fn test_buffer_new() {
+        let textarea = TextArea::new(vec!["Hello, world!".to_string()]);
+        let buffer = Buffer::new(textarea.clone(), Some("test.txt".to_string()));
+        assert_eq!(buffer.filename, Some("test.txt".to_string()));
+        assert_eq!(buffer.input.lines(), textarea.lines());
+    }
+
+    #[test]
+    fn test_buffer_init() {
+        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        writeln!(temp_file, "Hello, world!").expect("Failed to write to temp file");
+        let path = temp_file.path().to_str().unwrap().to_string();
+
+        let mut buffer = Buffer::default();
+        assert!(buffer.init(&path).is_ok());
+        assert_eq!(buffer.filename, Some(path));
+        assert_eq!(buffer.input.lines(), vec!["Hello, world!".to_string()]);
+    }
+
+    #[test]
+    fn test_custom_text_area() {
+        let buffer = Buffer::default();
+        let lines = vec!["Line 1".to_string(), "Line 2".to_string()];
+        let text_area = buffer.custom_text_area(lines.clone());
+        assert_eq!(text_area.lines(), lines);
+    }
+
+}
