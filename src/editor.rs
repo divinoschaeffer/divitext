@@ -136,7 +136,6 @@ mod tests {
     use std::cell::RefCell;
     use std::fs::{self, File};
     use std::rc::Rc;
-    use tui_textarea::TextArea;
 
     #[test]
     fn test_editor_init_with_file() {
