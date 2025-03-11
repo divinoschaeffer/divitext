@@ -27,7 +27,7 @@ impl Default for App<'_> {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub enum CurrentScreen {
     #[default]
     Home,
