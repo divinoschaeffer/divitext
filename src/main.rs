@@ -1,12 +1,9 @@
 use std::error::Error;
 use std::fs::{OpenOptions};
-use std::io::Stdout;
 use chrono::Local;
 use clap::{arg, command};
 use fern::Dispatch;
 use log::{log, Level};
-use ratatui::backend::CrosstermBackend;
-use ratatui::Terminal;
 use crate::app::App;
 
 pub mod editor;
@@ -47,13 +44,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let file = matches.get_one::<String>("FILE");
 
-    let backend: CrosstermBackend<Stdout> = CrosstermBackend::new(std::io::stdout());
-    let mut terminal = Terminal::new(backend)?;
+    let mut terminal = ratatui::init();
 
     App::init(&mut terminal)?;
     let mut app: App = App::default();
     app.run(&mut terminal, file)?;
     App::drop(&mut terminal)?;
+    ratatui::restore();
 
     Ok(())
 }
