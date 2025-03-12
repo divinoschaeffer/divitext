@@ -1,12 +1,16 @@
+use std::error::Error;
 use std::fs::{OpenOptions};
 use chrono::Local;
+use clap::{arg, command};
 use fern::Dispatch;
-use log::{error, log, Level};
-use crate::editor::Editor;
+use log::{log, Level};
+use crate::app::App;
 
 pub mod editor;
 pub mod buffer;
-mod display;
+mod app;
+mod home;
+mod state;
 
 fn init_logger() {
     let log_file = OpenOptions::new()
@@ -29,22 +33,24 @@ fn init_logger() {
         .expect("Initialization failed");
 }
 
-fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+fn main() -> Result<(), Box<dyn Error>> {
     init_logger();
-    log!(Level::Info,"Welcome to Divino editor!");
+    log!(Level::Info,"Welcome to Divitext!");
 
-    let mut editor: Editor = Editor::default();
-    let file = args.get(0).cloned();
-    match editor.init(file) {
-        Ok(_) => (),
-        Err(e) => {
-            error!("{}", e);
-        }
-    };
+    let matches = command!()
+        .author("Schaeffer Divino, divino.schaeffer@gmail.com")
+        .arg(arg!([FILE] "Open a file").required(false))
+        .get_matches();
 
-    match editor.run() {
-        Ok(_) => (),
-        Err(err) => error!("{}", err),
-    }
+    let file = matches.get_one::<String>("FILE");
+
+    let mut terminal = ratatui::init();
+
+    App::init(&mut terminal)?;
+    let mut app: App = App::default();
+    app.run(&mut terminal, file)?;
+    App::drop(&mut terminal)?;
+    ratatui::restore();
+
+    Ok(())
 }
