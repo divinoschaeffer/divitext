@@ -29,12 +29,12 @@ impl<'a> Editor<'a> {
         }
     }
 
-    pub fn init(&mut self, file_path: Option<String>) ->Result<(), io::Error> {
+    pub fn init(&mut self, file_path: Option<&String>) ->Result<(), io::Error> {
         let state = self.state.borrow_mut();
         let mut buffer_list = state.buffer_list.borrow_mut();
         let mut current_buffer = state.current_buffer.borrow_mut();
 
-        if let Some(filename) = file_path.as_ref() {
+        if let Some(filename) = file_path {
             let mut buffer = Buffer::default();
             buffer.init(filename)?;
 
@@ -144,7 +144,7 @@ mod tests {
 
         let file_path = "test_file.txt";
         File::create(file_path).unwrap();
-        editor.init(Some(file_path.to_string())).unwrap();
+        editor.init(Some(&file_path.to_string())).unwrap();
 
         let buffer_list = editor.get_buffer_list();
         assert_eq!(buffer_list.len(), 1);
@@ -171,7 +171,7 @@ mod tests {
         let file_path = "test_save.txt";
 
         File::create(file_path).unwrap();
-        editor.init(Some(file_path.to_string())).unwrap();
+        editor.init(Some(&file_path.to_string())).unwrap();
 
         let key_event = KeyEvent {
             code: KeyCode::Char(' '),

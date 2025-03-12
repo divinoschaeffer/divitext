@@ -35,7 +35,7 @@ pub enum CurrentScreen {
 }
 
 impl App<'_> {
-    pub fn run(&mut self, terminal: &mut DefaultTerminal, file: Option<String>) -> io::Result<()> {
+    pub fn run(&mut self, terminal: &mut DefaultTerminal, file: Option<&String>) -> io::Result<()> {
         if file.is_some() {
             self.state.borrow_mut().current_screen.replace(CurrentScreen::Editor);
         }

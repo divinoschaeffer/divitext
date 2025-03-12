@@ -2,6 +2,7 @@ use std::error::Error;
 use std::fs::{OpenOptions};
 use std::io::Stdout;
 use chrono::Local;
+use clap::{arg, command};
 use fern::Dispatch;
 use log::{log, Level};
 use ratatui::backend::CrosstermBackend;
@@ -36,11 +37,15 @@ fn init_logger() {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
     init_logger();
     log!(Level::Info,"Welcome to Divitext!");
 
-    let file = args.first().cloned();
+    let matches = command!()
+        .author("Schaeffer Divino, divino.schaeffer@gmail.com")
+        .arg(arg!([FILE] "Open a file").required(false))
+        .get_matches();
+
+    let file = matches.get_one::<String>("FILE");
 
     let backend: CrosstermBackend<Stdout> = CrosstermBackend::new(std::io::stdout());
     let mut terminal = Terminal::new(backend)?;
