@@ -1,4 +1,4 @@
-# Text Editor
+# Divitext
 
 A simple terminal-based text editor similar to Nano, written in Rust. This editor provides basic functionalities such as creating a new file and editing an existing one. Compatible with Linux and macOS systems.
 
@@ -20,38 +20,26 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Then, clone the repository and build the project:
 
 ```
-git clone https://github.com/divinoschaeffer/my_editor.git
+git clone https://github.com/divinoschaeffer/divitext.git
 cd text-editor
-cargo build --release
+cargo install path .
 ```
 
-This will create the executable in the `target/release/` directory.
+This will install the text editor.
 
 ## Usage
 
 To start the editor, run:
 
 ```
-cargo run -- <filename>
+divitex [filename]
 ```
 
-Or, if you compiled it in release mode:
+![img_1.png](img_1.png)
 
-```
-target/release/text-editor <filename>
-```
-
-- If `<filename>` is provided, the editor will open that file.
+- If `[filename]` is provided, the editor will open that file.
 - If the file does not exist, it will be created.
 - If no filename is provided, a new buffer will be opened.
-
-## Controls
-
-- `CTRL + S` - Save the file
-- `CTRL + Q` - Exit the editor
-- Arrow keys - Move cursor
-- `Backspace` - Delete character
-- `Enter` - Insert new line
 
 ## Contributing
 
