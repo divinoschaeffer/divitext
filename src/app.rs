@@ -5,24 +5,30 @@ use crossterm::event::{DisableMouseCapture, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{event, execute};
 use ratatui::{DefaultTerminal, Frame};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::io;
 use std::rc::Rc;
+use crate::action_bar::ActionBar;
 
 #[derive(Debug)]
 pub struct App<'a> {
     pub home: Home<'a>,
     pub editor: Editor<'a>,
+    pub action_bar: ActionBar,
     pub state: Rc<RefCell<State<'a>>>,
+    pub show_action_bar: Rc<Cell<bool>>,
 }
 
 impl Default for App<'_> {
     fn default() -> Self {
         let state = Rc::new(RefCell::new(State::new(CurrentScreen::default())));
+        let show_action_bar = Rc::new(Cell::new(false));
         Self {
             home: Home::new(state.clone()),
             editor: Editor::new(state.clone()),
+            action_bar: ActionBar::new(show_action_bar.clone()),
             state,
+            show_action_bar: show_action_bar.clone(),
         }
     }
 }
@@ -75,6 +81,10 @@ impl App<'_> {
             CurrentScreen::Editor => frame.render_widget(&self.editor, frame.area()),
             CurrentScreen::Home => frame.render_widget(&self.home, frame.area())
         }
+
+        if self.show_action_bar.get() {
+            frame.render_widget(&self.action_bar, frame.area());
+        }
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
@@ -83,6 +93,18 @@ impl App<'_> {
 
             if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::CONTROL {
                 exit.set(true);
+            }
+
+            if key.code == KeyCode::Char(' ') && key.modifiers == KeyModifiers::CONTROL {
+                self.show_action_bar.set(!self.show_action_bar.get());
+            }
+
+            if self.show_action_bar.get() {
+                if key.code == KeyCode::Esc {
+                    self.show_action_bar.set(false);
+                } else {
+                    self.action_bar.handle_input(key)?;
+                }
             }
 
             let current_screen = self.state.borrow().current_screen.borrow().clone();

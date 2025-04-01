@@ -11,6 +11,7 @@ pub mod buffer;
 mod app;
 mod home;
 mod state;
+mod action_bar;
 
 fn init_logger() {
     let log_file = OpenOptions::new()
