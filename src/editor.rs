@@ -4,13 +4,13 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::Widget;
 use ratatui::style::Stylize;
-use ratatui::text::Text;
 use std::cell::RefCell;
 use std::fs::OpenOptions;
 use std::io;
 use std::io::{Write};
 use std::ops::Deref;
 use std::rc::Rc;
+use ratatui::text::Text;
 use tui_textarea::TextArea;
 
 const FILE_SUCCESSFULLY_SAVED:&str = "File saved successfully !";
@@ -49,7 +49,7 @@ impl<'a> Editor<'a> {
 
     pub fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
         match key {
-            KeyEvent { code: KeyCode::Char(' '), modifiers: KeyModifiers::CONTROL | KeyModifiers::SUPER, .. } => {
+            KeyEvent { code: KeyCode::Char('s'), modifiers: KeyModifiers::CONTROL, .. } => {
                 self.save_current_buffer()?;
                 self.show_success_save = true;
             }

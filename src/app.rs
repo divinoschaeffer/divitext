@@ -105,13 +105,13 @@ impl App<'_> {
                 } else {
                     self.action_bar.handle_input(key)?;
                 }
-            }
+            } else {
+                let current_screen = self.state.borrow().current_screen.borrow().clone();
 
-            let current_screen = self.state.borrow().current_screen.borrow().clone();
-
-            match current_screen {
-                CurrentScreen::Home => self.home.handle_input(key)?,
-                CurrentScreen::Editor => self.editor.handle_input(key)?,
+                match current_screen {
+                    CurrentScreen::Home => self.home.handle_input(key)?,
+                    CurrentScreen::Editor => self.editor.handle_input(key)?,
+                }
             }
         }
         Ok(())

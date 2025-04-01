@@ -34,3 +34,31 @@
 2025-04-01 21:48:43 [INFO] Welcome to Divitext!
 2025-04-01 21:48:43 [TRACE] registering event source with poller: token=Token(0), interests=READABLE
 2025-04-01 21:48:43 [TRACE] registering event source with poller: token=Token(1), interests=READABLE
+2025-04-01 21:52:34 [WARN] create file
+2025-04-01 21:56:57 [INFO] Welcome to Divitext!
+2025-04-01 21:56:57 [TRACE] registering event source with poller: token=Token(0), interests=READABLE
+2025-04-01 21:56:57 [TRACE] registering event source with poller: token=Token(1), interests=READABLE
+2025-04-01 21:57:25 [INFO] Welcome to Divitext!
+2025-04-01 21:57:25 [TRACE] registering event source with poller: token=Token(0), interests=READABLE
+2025-04-01 21:57:25 [TRACE] registering event source with poller: token=Token(1), interests=READABLE
+2025-04-01 21:57:41 [INFO] Welcome to Divitext!
+2025-04-01 21:57:41 [TRACE] registering event source with poller: token=Token(0), interests=READABLE
+2025-04-01 21:57:41 [TRACE] registering event source with poller: token=Token(1), interests=READABLE
+2025-04-01 22:05:17 [INFO] Welcome to Divitext!
+2025-04-01 22:05:17 [TRACE] registering event source with poller: token=Token(0), interests=READABLE
+2025-04-01 22:05:17 [TRACE] registering event source with poller: token=Token(1), interests=READABLE
+2025-04-01 22:05:21 [WARN] create file
+2025-04-01 22:05:22 [WARN] open file
+2025-04-01 22:05:24 [WARN] open file
+2025-04-01 22:06:43 [INFO] Welcome to Divitext!
+2025-04-01 22:06:43 [TRACE] registering event source with poller: token=Token(0), interests=READABLE
+2025-04-01 22:06:43 [TRACE] registering event source with poller: token=Token(1), interests=READABLE
+2025-04-01 22:07:42 [INFO] Welcome to Divitext!
+2025-04-01 22:07:42 [TRACE] registering event source with poller: token=Token(0), interests=READABLE
+2025-04-01 22:07:42 [TRACE] registering event source with poller: token=Token(1), interests=READABLE
+2025-04-01 22:08:15 [INFO] Welcome to Divitext!
+2025-04-01 22:08:15 [TRACE] registering event source with poller: token=Token(0), interests=READABLE
+2025-04-01 22:08:15 [TRACE] registering event source with poller: token=Token(1), interests=READABLE
+2025-04-01 22:08:25 [INFO] Welcome to Divitext!
+2025-04-01 22:08:25 [TRACE] registering event source with poller: token=Token(0), interests=READABLE
+2025-04-01 22:08:25 [TRACE] registering event source with poller: token=Token(1), interests=READABLE
