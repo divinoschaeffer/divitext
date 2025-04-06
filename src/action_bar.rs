@@ -8,6 +8,7 @@ use ratatui::prelude::Widget;
 use ratatui::style::Stylize;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use crate::new_file_widget::NewFileWidget;
+use crate::open_file_widget::OpenFileWidget;
 use crate::state::State;
 
 const ACTION: &str = "n: Create File | o: Open File\n\nEsc: Close";
@@ -25,6 +26,7 @@ pub struct ActionBar<'a> {
     pub state: Rc<RefCell<State<'a>>>,
     pub action_widget: ActionWidget,
     pub new_file_widget: NewFileWidget<'a>,
+    pub open_file_widget: OpenFileWidget<'a>,
 }
 
 impl ActionBar<'_> {
@@ -33,7 +35,8 @@ impl ActionBar<'_> {
             show,
             state: state.clone(),
             action_widget: ActionWidget::None,
-            new_file_widget: NewFileWidget::new(state),
+            new_file_widget: NewFileWidget::new(state.clone()),
+            open_file_widget: OpenFileWidget::new(state),
         }
     }
     pub fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
@@ -64,12 +67,23 @@ impl ActionBar<'_> {
                         self.new_file_widget.create_new_file()?;
                         self.action_widget = ActionWidget::None;
                     },
-                    ActionWidget::OpenFile => {}
+                    ActionWidget::OpenFile => {
+                        self.open_file_widget.open_file()?;
+                        self.action_widget = ActionWidget::None;
+                    }
                     ActionWidget::None => {}
                 }
             }
             _ => {
-                self.new_file_widget.input.input(key);
+                match self.action_widget {
+                    ActionWidget::NewFile => {
+                        self.new_file_widget.input.input(key);
+                    },
+                    ActionWidget::OpenFile => {
+                        self.open_file_widget.input.input(key);
+                    },
+                    ActionWidget::None => {}
+                }
             }
         }
         Ok(())
@@ -101,7 +115,9 @@ impl Widget for &ActionBar<'_> {
             ActionWidget::NewFile => {
                 self.new_file_widget.render(area, buf);
             },
-            ActionWidget::OpenFile => {},
+            ActionWidget::OpenFile => {
+                self.open_file_widget.render(area, buf);
+            },
             ActionWidget::None => {}
         }
     }
