@@ -43,12 +43,12 @@ pub enum CurrentScreen {
 impl App<'_> {
     pub fn run(&mut self, terminal: &mut DefaultTerminal, file: Option<&String>) -> io::Result<()> {
         if file.is_some() {
-            self.state.borrow_mut().current_screen.replace(CurrentScreen::Editor);
+            self.state.borrow_mut().current_screen = CurrentScreen::Editor;
         }
 
         self.editor.init(file)?;
 
-        while !self.state.borrow().exit.get() {
+        while !self.state.borrow().exit {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
         }
@@ -77,7 +77,7 @@ impl App<'_> {
     }
 
     fn draw(&self, frame: &mut Frame) {
-        match &self.state.borrow().current_screen.borrow().clone() {
+        match &self.state.borrow().current_screen {
             CurrentScreen::Editor => frame.render_widget(&self.editor, frame.area()),
             CurrentScreen::Home => frame.render_widget(&self.home, frame.area())
         }
@@ -89,10 +89,9 @@ impl App<'_> {
 
     fn handle_events(&mut self) -> io::Result<()> {
         if let Event::Key(key) = event::read()? {
-            let exit = self.state.borrow_mut().exit.clone();
 
             if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::CONTROL {
-                exit.set(true);
+                self.state.borrow_mut().exit = true;
             }
 
             if key.code == KeyCode::Char(' ') && key.modifiers == KeyModifiers::CONTROL {
@@ -106,7 +105,7 @@ impl App<'_> {
                     self.action_bar.handle_input(key)?;
                 }
             } else {
-                let current_screen = self.state.borrow().current_screen.borrow().clone();
+                let current_screen = self.state.borrow().current_screen.clone();
 
                 match current_screen {
                     CurrentScreen::Home => self.home.handle_input(key)?,

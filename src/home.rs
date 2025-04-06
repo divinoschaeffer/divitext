@@ -122,7 +122,7 @@ impl<'a> Home<'a> {
     }
 
     pub fn handle_open_file(&mut self) -> Result<(), io::Error> {
-        let state = self.state.borrow_mut();
+        let mut state = self.state.borrow_mut();
         let mut buffer = Buffer::default();
 
         let filename = self.input.lines().first().unwrap();
@@ -136,12 +136,12 @@ impl<'a> Home<'a> {
 
         buffer.init(filename.deref())?;
         state.push_buffer(buffer);
-        state.current_screen.replace(CurrentScreen::Editor);
+        state.current_screen = CurrentScreen::Editor;
         Ok(())
     }
 
     pub fn handle_create_file(&mut self) -> Result<(), io::Error> {
-        let state = self.state.borrow_mut();
+        let mut state = self.state.borrow_mut();
         let mut buffer = Buffer::default();
         let filename = self.input.lines().first().unwrap();
 
@@ -154,7 +154,7 @@ impl<'a> Home<'a> {
 
         buffer.init(filename.deref())?;
         state.push_buffer(buffer);
-        state.current_screen.replace(CurrentScreen::Editor);
+        state.current_screen = CurrentScreen::Editor;
         Ok(())
     }
 

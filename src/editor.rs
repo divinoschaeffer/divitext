@@ -30,19 +30,18 @@ impl<'a> Editor<'a> {
     }
 
     pub fn init(&mut self, file_path: Option<&String>) ->Result<(), io::Error> {
-        let state = self.state.borrow_mut();
-        let mut buffer_list = state.buffer_list.borrow_mut();
-        let mut current_buffer = state.current_buffer.borrow_mut();
+        let mut state = self.state.borrow_mut();
+
 
         if let Some(filename) = file_path {
             let mut buffer = Buffer::default();
             buffer.init(filename)?;
 
-            buffer_list.push(buffer);
-            *current_buffer = buffer_list.len() - 1;
+            state.buffer_list.push(buffer);
+            state.current_buffer = state.buffer_list.len() - 1;
         } else {
             let buffer = Buffer::new(TextArea::default(), None);
-            buffer_list.push(buffer);
+            state.buffer_list.push(buffer);
         }
         Ok(())
     }
@@ -65,32 +64,26 @@ impl<'a> Editor<'a> {
     }
 
     pub fn handle_input_current_buffer(&self, key: KeyEvent) {
-        let state = self.state.borrow_mut();
-        let mut buffer_list = state.buffer_list.borrow_mut();
-        let current_buffer = state.current_buffer.borrow_mut();
-        buffer_list[*current_buffer].input.input(key);
+        let mut state = self.state.borrow_mut();
+        let index =state.current_buffer;
+        state.buffer_list[index].input.input(key);
     }
 
     pub fn get_current_buffer(&self) -> Buffer {
         let state = self.state.borrow();
-        let buffer_list = state.buffer_list.borrow();
-        let current_buffer = state.current_buffer.borrow();
-        buffer_list[*current_buffer].clone()
+        state.buffer_list[state.current_buffer].clone()
     }
 
     pub fn get_buffer_list(&self) -> Vec<Buffer> {
         let state = self.state.borrow();
-        let list = state.buffer_list.borrow().deref().clone();
-        list
+        state.buffer_list.clone()
     }
 
     pub fn save_current_buffer(&self) -> Result<(), io::Error> {
         let state = self.state.borrow();
-        let buffer_list = state.buffer_list.borrow();
-        let current_buffer = state.current_buffer.borrow();
 
-        let content  = buffer_list[*current_buffer].input.lines().join("\n");
-        let filename = buffer_list[*current_buffer].clone().filename.unwrap().clone();
+        let content  = state.buffer_list[state.current_buffer].input.lines().join("\n");
+        let filename = state.buffer_list[state.current_buffer].clone().filename.unwrap().clone();
 
         let mut file = OpenOptions::new()
             .create(true)
