@@ -39,7 +39,6 @@ pub struct Home<'a> {
     pub show_popup: bool,
     pub current_popup: CurrentPopup,
     pub new_file_widget: NewFileWidget<'a>,
-    pub valid_input: bool,
 }
 
 impl<'a> Home<'a> {
@@ -47,7 +46,6 @@ impl<'a> Home<'a> {
     pub fn new(state: Rc<RefCell<State<'a>>>) -> Home<'a> {
         Self {
             state: state.clone(),
-            valid_input: false,
             show_popup: false,
             new_file_widget: NewFileWidget::new(state),
             current_popup: CurrentPopup::None,
@@ -59,7 +57,6 @@ impl<'a> Home<'a> {
             match key {
                 KeyEvent { code: KeyCode::Enter, .. }
                 | KeyEvent { code: KeyCode::Char('m'), modifiers: KeyModifiers::CONTROL, .. } => {
-                    self.valid_input = true;
                     match self.current_popup {
                         CurrentPopup::None => (),
                         CurrentPopup::OpenFile => {
@@ -70,7 +67,6 @@ impl<'a> Home<'a> {
                             self.show_popup = false;
                         },
                     }
-                    self.valid_input = false;
                 },
                 KeyEvent { code: KeyCode::Esc, .. } => {
                     self.show_popup = false;
@@ -216,7 +212,6 @@ mod tests {
 
         assert_eq!(home.show_popup, false);
         assert_eq!(home.current_popup, CurrentPopup::None);
-        assert_eq!(home.valid_input, false);
     }
 
     #[test]

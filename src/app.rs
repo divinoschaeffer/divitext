@@ -8,7 +8,7 @@ use ratatui::{DefaultTerminal, Frame};
 use std::cell::{Cell, RefCell};
 use std::io;
 use std::rc::Rc;
-use crate::action_bar::ActionBar;
+use crate::action_bar::{ActionBar, ActionWidget};
 
 #[derive(Debug)]
 pub struct App<'a> {
@@ -95,12 +95,14 @@ impl App<'_> {
             }
 
             if key.code == KeyCode::Char(' ') && key.modifiers == KeyModifiers::CONTROL {
+                self.action_bar.action_widget = ActionWidget::None;
                 self.show_action_bar.set(!self.show_action_bar.get());
             }
 
             if self.show_action_bar.get() {
                 if key.code == KeyCode::Esc {
                     self.show_action_bar.set(false);
+                    self.action_bar.action_widget = ActionWidget::None;
                 } else {
                     self.action_bar.handle_input(key)?;
                 }
