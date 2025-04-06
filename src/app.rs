@@ -14,7 +14,7 @@ use crate::action_bar::ActionBar;
 pub struct App<'a> {
     pub home: Home<'a>,
     pub editor: Editor<'a>,
-    pub action_bar: ActionBar,
+    pub action_bar: ActionBar<'a>,
     pub state: Rc<RefCell<State<'a>>>,
     pub show_action_bar: Rc<Cell<bool>>,
 }
@@ -26,7 +26,7 @@ impl Default for App<'_> {
         Self {
             home: Home::new(state.clone()),
             editor: Editor::new(state.clone()),
-            action_bar: ActionBar::new(show_action_bar.clone()),
+            action_bar: ActionBar::new(show_action_bar.clone(), state.clone()),
             state,
             show_action_bar: show_action_bar.clone(),
         }

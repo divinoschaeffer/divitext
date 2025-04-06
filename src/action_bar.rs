@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::io;
 use std::rc::Rc;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -8,21 +8,20 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::Widget;
 use ratatui::style::Stylize;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use crate::state::State;
 
 const ACTION: &str = "n: Create File | o: Open File\n\nEsc: Close";
 
 #[derive(Debug, Default)]
-pub struct ActionBar {
+pub struct ActionBar<'a> {
     pub show: Rc<Cell<bool>>,
+    pub state: Rc<RefCell<State<'a>>>
 }
 
-impl ActionBar {
-    pub fn new(show: Rc<Cell<bool>>) -> ActionBar {
-        ActionBar { show }
+impl ActionBar<'_> {
+    pub fn new(show: Rc<Cell<bool>>, state: Rc<RefCell<State>>) -> ActionBar<'_> {
+        ActionBar { show, state }
     }
-}
-
-impl ActionBar {
     pub fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
         match key {
             KeyEvent { code: KeyCode::Esc, modifiers: _, .. } => {
@@ -40,7 +39,7 @@ impl ActionBar {
     }
 }
 
-impl Widget for &ActionBar {
+impl Widget for &ActionBar<'_> {
     fn render(self, area: Rect, buf: &mut Buffer)
     {
         let layout = Layout::default()

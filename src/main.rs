@@ -12,6 +12,9 @@ mod app;
 mod home;
 mod state;
 mod action_bar;
+mod new_file_widget;
+mod text_area_popup_widget;
+mod error_type;
 
 fn init_logger() {
     let log_file = OpenOptions::new()
