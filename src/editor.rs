@@ -8,7 +8,6 @@ use std::cell::RefCell;
 use std::fs::OpenOptions;
 use std::io;
 use std::io::{Write};
-use std::ops::Deref;
 use std::rc::Rc;
 use ratatui::text::Text;
 use tui_textarea::TextArea;
