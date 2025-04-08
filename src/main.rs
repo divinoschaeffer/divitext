@@ -11,12 +11,17 @@ pub mod buffer;
 mod app;
 mod home;
 mod state;
+mod action_bar;
+mod new_file_widget;
+mod text_area_popup_widget;
+mod error_type;
+mod open_file_widget;
 
 fn init_logger() {
     let log_file = OpenOptions::new()
         .create(true)
         .append(true)
-        .open("log.txt")
+        .open("divino_editor_log")
         .expect("Unable to open log file");
 
     Dispatch::new()
