@@ -97,3 +97,37 @@ impl Widget for &Home<'_> {
         title.render(title_area, buf);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::State;
+    use std::rc::Rc;
+    use std::cell::RefCell;
+
+    #[test]
+    fn test_home_new() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let _home = Home::new(Rc::clone(&state));
+        assert_eq!(Rc::strong_count(&state), 2);
+    }
+
+    #[test]
+    fn test_home_handle_input_returns_ok() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut home = Home::new(Rc::clone(&state));
+        let dummy_key = KeyEvent::from(crossterm::event::KeyCode::Char('n'));
+        let result = home.handle_input(dummy_key);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_home_render_does_not_panic() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let home = Home::new(Rc::clone(&state));
+        let mut buffer = RatBuffer::empty(Rect::new(0, 0, 120, 40));
+        let area = Rect::new(0, 0, 120, 40);
+
+        (&home).render(area, &mut buffer);
+    }
+}

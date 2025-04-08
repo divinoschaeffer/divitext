@@ -7,7 +7,7 @@ use ratatui::style::Stylize;
 use std::cell::RefCell;
 use std::fs::OpenOptions;
 use std::io;
-use std::io::{Write};
+use std::io::Write;
 use std::rc::Rc;
 use ratatui::text::Text;
 use tui_textarea::TextArea;
@@ -28,9 +28,8 @@ impl<'a> Editor<'a> {
         }
     }
 
-    pub fn init(&mut self, file_path: Option<&String>) ->Result<(), io::Error> {
+    pub fn init(&mut self, file_path: Option<&String>) -> Result<(), io::Error> {
         let mut state = self.state.borrow_mut();
-
 
         if let Some(filename) = file_path {
             let mut buffer = Buffer::default();
@@ -64,7 +63,7 @@ impl<'a> Editor<'a> {
 
     pub fn handle_input_current_buffer(&self, key: KeyEvent) {
         let mut state = self.state.borrow_mut();
-        let index =state.current_buffer;
+        let index = state.current_buffer;
         state.buffer_list[index].input.input(key);
     }
 
@@ -81,8 +80,12 @@ impl<'a> Editor<'a> {
     pub fn save_current_buffer(&self) -> Result<(), io::Error> {
         let state = self.state.borrow();
 
-        let content  = state.buffer_list[state.current_buffer].input.lines().join("\n");
-        let filename = state.buffer_list[state.current_buffer].clone().filename.unwrap().clone();
+        let content = state.buffer_list[state.current_buffer].input.lines().join("\n");
+        let filename = state.buffer_list[state.current_buffer]
+            .clone()
+            .filename
+            .unwrap()
+            .clone();
 
         let mut file = OpenOptions::new()
             .create(true)
@@ -95,9 +98,8 @@ impl<'a> Editor<'a> {
     }
 }
 
-impl Widget for &Editor<'_>{
-    fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer)
-    {
+impl Widget for &Editor<'_> {
+    fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer) {
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -123,8 +125,7 @@ impl Widget for &Editor<'_>{
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::State;
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, KeyEventKind, KeyEventState};
     use std::cell::RefCell;
     use std::fs::{self, File};
     use std::rc::Rc;
@@ -165,15 +166,26 @@ mod tests {
         File::create(file_path).unwrap();
         editor.init(Some(&file_path.to_string())).unwrap();
 
-        let key_event = KeyEvent {
-            code: KeyCode::Char(' '),
-            modifiers: KeyModifiers::CONTROL,
-            kind: crossterm::event::KeyEventKind::Press,
-            state: crossterm::event::KeyEventState::empty(),
+        let key_event_write = KeyEvent {
+            code: KeyCode::Char('H'),
+            modifiers: KeyModifiers::empty(),
+            kind: KeyEventKind::Press,
+            state: KeyEventState::empty(),
         };
+        editor.handle_input(key_event_write).unwrap();
 
-        editor.handle_input(key_event).unwrap();
+        let key_event_save = KeyEvent {
+            code: KeyCode::Char('s'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::empty(),
+        };
+        editor.handle_input(key_event_save).unwrap();
+
         assert!(editor.show_success_save);
+
+        let saved_content = fs::read_to_string(file_path).unwrap();
+        assert_eq!(saved_content, "H");
 
         fs::remove_file(file_path).unwrap();
     }
@@ -187,12 +199,41 @@ mod tests {
         let key_event = KeyEvent {
             code: KeyCode::Char('a'),
             modifiers: KeyModifiers::empty(),
-            kind: crossterm::event::KeyEventKind::Press,
-            state: crossterm::event::KeyEventState::empty(),
+            kind: KeyEventKind::Press,
+            state: KeyEventState::empty(),
         };
 
         editor.handle_input(key_event).unwrap();
         let buffer = editor.get_current_buffer();
         assert_eq!(buffer.input.lines(), vec!["a"]);
+    }
+
+    #[test]
+    fn test_success_message_resets_on_other_input() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut editor = Editor::new(Rc::clone(&state));
+        editor.init(None).unwrap();
+
+        editor.show_success_save = true;
+
+        let key_event = KeyEvent {
+            code: KeyCode::Char('x'),
+            modifiers: KeyModifiers::empty(),
+            kind: KeyEventKind::Press,
+            state: KeyEventState::empty(),
+        };
+
+        editor.handle_input(key_event).unwrap();
+        assert!(!editor.show_success_save);
+    }
+
+    #[test]
+    fn test_get_current_buffer_returns_expected_buffer() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut editor = Editor::new(Rc::clone(&state));
+        editor.init(None).unwrap();
+
+        let buffer = editor.get_current_buffer();
+        assert!(buffer.filename.is_none());
     }
 }

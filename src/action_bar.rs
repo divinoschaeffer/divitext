@@ -20,6 +20,7 @@ pub enum ActionWidget {
     #[default]
     None
 }
+
 #[derive(Debug)]
 pub struct ActionBar<'a> {
     pub show: Rc<Cell<bool>>,
@@ -39,6 +40,7 @@ impl ActionBar<'_> {
             open_file_widget: OpenFileWidget::new(state),
         }
     }
+
     pub fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
         if self.action_widget != ActionWidget::None {
             self.handle_when_widget_is_active(key)?;
@@ -120,5 +122,60 @@ impl Widget for &ActionBar<'_> {
             },
             ActionWidget::None => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::State;
+    use std::cell::{RefCell, Cell};
+    use std::rc::Rc;
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    #[test]
+    fn test_action_bar_new_defaults() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let show = Rc::new(Cell::new(false));
+        let action_bar = ActionBar::new(Rc::clone(&show), Rc::clone(&state));
+
+        assert_eq!(action_bar.action_widget, ActionWidget::None);
+        assert_eq!(show.get(), false);
+    }
+
+    #[test]
+    fn test_handle_input_new_file_shortcut() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let show = Rc::new(Cell::new(false));
+        let mut action_bar = ActionBar::new(Rc::clone(&show), Rc::clone(&state));
+
+        let key = KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE);
+        action_bar.handle_input(key).unwrap();
+        assert_eq!(action_bar.action_widget, ActionWidget::NewFile);
+    }
+
+    #[test]
+    fn test_handle_input_open_file_shortcut() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let show = Rc::new(Cell::new(false));
+        let mut action_bar = ActionBar::new(Rc::clone(&show), Rc::clone(&state));
+
+        let key = KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE);
+        action_bar.handle_input(key).unwrap();
+        assert_eq!(action_bar.action_widget, ActionWidget::OpenFile);
+    }
+
+    #[test]
+    fn test_handle_input_escape_closes_action_bar() {
+        let state = Rc::new(RefCell::new(State::default()));
+        let show = Rc::new(Cell::new(true));
+        let mut action_bar = ActionBar::new(Rc::clone(&show), Rc::clone(&state));
+
+        action_bar.action_widget = ActionWidget::OpenFile;
+        let key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+        action_bar.handle_input(key).unwrap();
+
+        assert_eq!(action_bar.action_widget, ActionWidget::None);
+        assert_eq!(show.get(), false);
     }
 }

@@ -39,25 +39,24 @@ impl<'a> State<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::CurrentScreen;
     use crate::buffer::Buffer;
     use tui_textarea::TextArea;
 
     #[test]
     fn test_state_default() {
         let state = State::default();
-        assert_eq!(*state.current_screen, CurrentScreen::Home);
-        assert_eq!(*state.current_buffer, 0);
-        assert!(state.buffer_list.borrow().is_empty());
+        assert_eq!(state.current_screen, CurrentScreen::Home);
+        assert_eq!(state.current_buffer, 0);
+        assert!(state.buffer_list.is_empty());
         assert_eq!(state.exit, false);
     }
 
     #[test]
     fn test_state_new() {
         let state = State::new(CurrentScreen::Editor);
-        assert_eq!(*state.current_screen, CurrentScreen::Editor);
-        assert_eq!(*state.current_buffer, 0);
-        assert!(state.buffer_list.borrow().is_empty());
+        assert_eq!(state.current_screen, CurrentScreen::Editor);
+        assert_eq!(state.current_buffer, 0);
+        assert!(state.buffer_list.is_empty());
         assert_eq!(state.exit, false);
     }
 
@@ -68,10 +67,9 @@ mod tests {
 
         state.push_buffer(buffer.clone());
 
-        let buffer_list = state.buffer_list.borrow();
-        assert_eq!(buffer_list.len(), 1);
-        assert_eq!(*state.current_buffer, 0);
-        assert_eq!(buffer_list[0].filename, Some("test.txt".to_string()));
+        assert_eq!(state.buffer_list.len(), 1);
+        assert_eq!(state.current_buffer, 0);
+        assert_eq!(state.buffer_list[0].filename, Some("test.txt".to_string()));
     }
 
     #[test]
@@ -82,18 +80,18 @@ mod tests {
         let buffer2 = Buffer::new(TextArea::default(), Some("file2.txt".to_string()));
 
         state.push_buffer(buffer1);
-        assert_eq!(*state.current_buffer, 0);
+        assert_eq!(state.current_buffer, 0);
 
         state.push_buffer(buffer2);
-        assert_eq!(*state.current_buffer, 1);
-        assert_eq!(state.buffer_list.borrow().len(), 2);
+        assert_eq!(state.current_buffer, 1);
+        assert_eq!(state.buffer_list.len(), 2);
     }
 
     #[test]
     fn test_update_screen() {
-        let state = State::default();
-        *state.current_screen = CurrentScreen::Editor;
-        assert_eq!(*state.current_screen, CurrentScreen::Editor);
+        let mut state = State::default();
+        state.current_screen = CurrentScreen::Editor;
+        assert_eq!(state.current_screen, CurrentScreen::Editor);
     }
 
     #[test]

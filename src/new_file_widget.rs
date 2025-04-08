@@ -71,3 +71,61 @@ fn popup_area(area: Rect, max_x: u16, max_y: u16) -> Rect {
     let [area] = horizontal.areas(area);
     area
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::State;
+    use std::cell::RefCell;
+    use std::fs;
+    use std::path::Path;
+    use std::rc::Rc;
+
+    fn create_widget_with_input(input: &str) -> NewFileWidget<'static> {
+        let state = Rc::new(RefCell::new(State::default()));
+        let mut widget = NewFileWidget::new(Rc::clone(&state));
+        widget.input.insert_str(input);
+        widget
+    }
+
+    #[test]
+    fn test_create_new_file_success() {
+        let file_path = "test_create_success.txt";
+        if Path::new(file_path).exists() {
+            fs::remove_file(file_path).unwrap();
+        }
+
+        let mut widget = create_widget_with_input(file_path);
+        let result = widget.create_new_file();
+
+        assert!(result.is_ok());
+        assert_eq!(widget.error, ErrorType::NONE);
+        assert!(Path::new(file_path).exists());
+
+        fs::remove_file(file_path).unwrap();
+    }
+
+    #[test]
+    fn test_create_new_file_already_exists() {
+        let file_path = "test_existing_file.txt";
+        fs::write(file_path, "hello").unwrap(); // create dummy file
+
+        let mut widget = create_widget_with_input(file_path);
+        let result = widget.create_new_file();
+
+        assert!(result.is_ok()); // because error is handled gracefully
+        assert_eq!(widget.error, ErrorType::FileExists);
+
+        fs::remove_file(file_path).unwrap();
+    }
+
+    #[test]
+    fn test_popup_area_is_centered() {
+        let area = Rect::new(0, 0, 100, 30);
+        let popup = super::popup_area(area, 50, 3);
+        assert_eq!(popup.width, 50);
+        assert_eq!(popup.height, 3);
+        assert!(popup.x > 0);
+        assert!(popup.y > 0);
+    }
+}
