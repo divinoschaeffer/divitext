@@ -11,7 +11,11 @@ use std::io;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::rc::Rc;
+use crossterm::event::KeyEvent;
+use log::error;
 use tui_textarea::{CursorMove, TextArea};
+use crate::action_bar::ActionWidget;
+use crate::popup::{popup_area};
 
 const POPUP_TITLE: &str = "Filename";
 
@@ -34,6 +38,7 @@ impl<'a> OpenFileWidget<'a> {
 
         if !PathBuf::from(path).is_file() {
             self.error = ErrorType::FileNotFound;
+            error!("File not found: {}", path);
             return Ok(());
         }
 
@@ -44,11 +49,8 @@ impl<'a> OpenFileWidget<'a> {
         self.input.delete_line_by_end();
         Ok(())
     }
-}
 
-impl Widget for &OpenFileWidget<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    {
+    fn render_content(&self, area: Rect, buf: &mut Buffer) {
         let pop_up_area = popup_area(area, 50, 3);
         Clear.render(pop_up_area, buf);
         if self.error == ErrorType::NONE {
@@ -64,12 +66,41 @@ impl Widget for &OpenFileWidget<'_> {
     }
 }
 
-fn popup_area(area: Rect, max_x: u16, max_y: u16) -> Rect {
-    let vertical = Layout::vertical([Constraint::Max(max_y)]).flex(Flex::Center);
-    let horizontal = Layout::horizontal([Constraint::Max(max_x)]).flex(Flex::Center);
-    let [area] = vertical.areas(area);
-    let [area] = horizontal.areas(area);
-    area
+impl ActionWidget for OpenFileWidget<'_> {
+    fn render(&self, area: Rect, buf: &mut Buffer) {
+        self.render_content(area, buf);
+    }
+
+    fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
+        if self.error != ErrorType::NONE {
+            self.error = ErrorType::NONE;
+        } else {
+            self.input.input(key);
+        }
+        Ok(())
+    }
+
+    fn has_error(&self) -> bool {
+        self.error != ErrorType::NONE
+    }
+
+    fn process_action(&mut self) -> Result<bool, io::Error> {
+        self.open_file()?;
+        Ok(self.error == ErrorType::NONE)
+    }
+
+    fn reset(&mut self) {
+        self.error = ErrorType::NONE;
+        self.input.move_cursor(CursorMove::Head);
+        self.input.delete_line_by_end();
+    }
+}
+
+impl Widget for &OpenFileWidget<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer)
+    {
+        self.render_content(area, buf);
+    }
 }
 
 #[cfg(test)]

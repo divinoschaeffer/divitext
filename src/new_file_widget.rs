@@ -1,9 +1,12 @@
+use crate::action_bar::ActionWidget;
 use crate::app::CurrentScreen;
 use crate::error_type::ErrorType;
+use crate::popup::popup_area;
 use crate::state::State;
 use crate::text_area_popup_widget::text_area_popup;
+use crossterm::event::KeyEvent;
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Flex, Layout, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::Stylize;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget};
 use std::cell::RefCell;
@@ -33,7 +36,7 @@ impl<'a> NewFileWidget<'a> {
         let path = self.input.lines().first().unwrap();
 
         if PathBuf::from(path).is_file() {
-           self.error = ErrorType::FileExists;
+            self.error = ErrorType::FileExists;
             return Ok(());
         }
 
@@ -44,11 +47,8 @@ impl<'a> NewFileWidget<'a> {
         self.input.delete_line_by_end();
         Ok(())
     }
-}
 
-impl Widget for &NewFileWidget<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    {
+    fn render_content(&self, area: Rect, buf: &mut Buffer) {
         let pop_up_area = popup_area(area, 50, 3);
         Clear.render(pop_up_area, buf);
         if self.error == ErrorType::NONE {
@@ -64,12 +64,40 @@ impl Widget for &NewFileWidget<'_> {
     }
 }
 
-fn popup_area(area: Rect, max_x: u16, max_y: u16) -> Rect {
-    let vertical = Layout::vertical([Constraint::Max(max_y)]).flex(Flex::Center);
-    let horizontal = Layout::horizontal([Constraint::Max(max_x)]).flex(Flex::Center);
-    let [area] = vertical.areas(area);
-    let [area] = horizontal.areas(area);
-    area
+impl ActionWidget for NewFileWidget<'_> {
+    fn render(&self, area: Rect, buf: &mut Buffer) {
+        self.render_content(area, buf);
+    }
+
+    fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
+        if self.error != ErrorType::NONE {
+            self.error = ErrorType::NONE;
+        } else {
+            self.input.input(key);
+        }
+        Ok(())
+    }
+
+    fn has_error(&self) -> bool {
+        self.error != ErrorType::NONE
+    }
+
+    fn process_action(&mut self) -> Result<bool, io::Error> {
+        self.create_new_file()?;
+        Ok(self.error == ErrorType::NONE)
+    }
+
+    fn reset(&mut self) {
+        self.error = ErrorType::NONE;
+        self.input.move_cursor(CursorMove::Head);
+        self.input.delete_line_by_end();
+    }
+}
+
+impl Widget for &NewFileWidget<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        self.render_content(area, buf);
+    }
 }
 
 #[cfg(test)]

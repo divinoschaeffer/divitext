@@ -11,90 +11,114 @@ use crate::new_file_widget::NewFileWidget;
 use crate::open_file_widget::OpenFileWidget;
 use crate::state::State;
 
-const ACTION: &str = "n: Create File | o: Open File\n\nEsc: Close";
+pub trait ActionWidget: std::fmt::Debug {
+    fn render(&self, area: Rect, buf: &mut Buffer);
+    fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error>;
+    fn has_error(&self) -> bool;
+    fn process_action(&mut self) -> Result<bool, io::Error>;
+    fn reset(&mut self);
+}
 
 #[derive(Debug, PartialEq, Default)]
-pub enum ActionWidget {
+pub enum ActionType {
     NewFile,
     OpenFile,
     #[default]
     None
 }
 
+const ACTION: &str = "n: Create File | o: Open File\n\nEsc: Close";
+
 #[derive(Debug)]
 pub struct ActionBar<'a> {
     pub show: Rc<Cell<bool>>,
     pub state: Rc<RefCell<State<'a>>>,
-    pub action_widget: ActionWidget,
-    pub new_file_widget: NewFileWidget<'a>,
-    pub open_file_widget: OpenFileWidget<'a>,
+    pub current_action: ActionType,
+    pub widgets: Vec<Box<dyn ActionWidget + 'a>>,
 }
 
-impl ActionBar<'_> {
-    pub fn new(show: Rc<Cell<bool>>, state: Rc<RefCell<State>>) -> ActionBar<'_> {
+impl<'a> ActionBar<'a> {
+    pub fn new(show: Rc<Cell<bool>>, state: Rc<RefCell<State<'a>>>) -> ActionBar<'a> {
+        let new_file_widget = Box::new(NewFileWidget::new(state.clone()));
+        let open_file_widget = Box::new(OpenFileWidget::new(state.clone()));
+
         ActionBar {
             show,
-            state: state.clone(),
-            action_widget: ActionWidget::None,
-            new_file_widget: NewFileWidget::new(state.clone()),
-            open_file_widget: OpenFileWidget::new(state),
+            state,
+            current_action: ActionType::None,
+            widgets: vec![new_file_widget, open_file_widget],
         }
     }
 
     pub fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
-        if self.action_widget != ActionWidget::None {
-            self.handle_when_widget_is_active(key)?;
+        if self.current_action != ActionType::None {
+            self.handle_active_widget_input(key)?;
+            return Ok(());
         }
-        match key {
-            KeyEvent { code: KeyCode::Esc, modifiers: _, .. } => {
-                self.action_widget = ActionWidget::None;
+
+        match key.code {
+            KeyCode::Esc => {
+                self.current_action = ActionType::None;
+                self.reset();
                 self.show.set(false);
             }
-            KeyEvent { code: KeyCode::Char('n'), .. } => {
-                self.action_widget = ActionWidget::NewFile;
+            KeyCode::Char('n') => {
+                self.current_action = ActionType::NewFile;
             },
-            KeyEvent { code: KeyCode::Char('o'), .. } => {
-                self.action_widget = ActionWidget::OpenFile;
+            KeyCode::Char('o') => {
+                self.current_action = ActionType::OpenFile;
             },
             _ => ()
         }
         Ok(())
     }
 
-    pub fn handle_when_widget_is_active(&mut self, key: KeyEvent) -> Result<(), io::Error> {
+    fn handle_active_widget_input(&mut self, key: KeyEvent) -> Result<(), io::Error> {
+        let widget_index = match self.current_action {
+            ActionType::NewFile => 0,
+            ActionType::OpenFile => 1,
+            ActionType::None => return Ok(()),
+        };
+
+        let has_error = self.widgets[widget_index].has_error();
+
+        if has_error && (key.code == KeyCode::Enter || key.code == KeyCode::Char(' ')) {
+            self.widgets[widget_index].handle_input(key)?;
+            return Ok(());
+        }
+
         match key.code {
             KeyCode::Enter => {
-                match self.action_widget {
-                    ActionWidget::NewFile => {
-                        self.new_file_widget.create_new_file()?;
-                        self.action_widget = ActionWidget::None;
-                    },
-                    ActionWidget::OpenFile => {
-                        self.open_file_widget.open_file()?;
-                        self.action_widget = ActionWidget::None;
-                    }
-                    ActionWidget::None => {}
+                let action_completed = self.widgets[widget_index].process_action()?;
+                if action_completed {
+                    self.show.set(false);
+                    self.current_action = ActionType::None;
                 }
             }
             _ => {
-                match self.action_widget {
-                    ActionWidget::NewFile => {
-                        self.new_file_widget.input.input(key);
-                    },
-                    ActionWidget::OpenFile => {
-                        self.open_file_widget.input.input(key);
-                    },
-                    ActionWidget::None => {}
-                }
+                self.widgets[widget_index].handle_input(key)?;
             }
         }
         Ok(())
     }
+
+    fn get_active_widget(&self) -> Option<&Box<dyn ActionWidget + 'a>> {
+        match self.current_action {
+            ActionType::NewFile => Some(&self.widgets[0]),
+            ActionType::OpenFile => Some(&self.widgets[1]),
+            ActionType::None => None,
+        }
+    }
+    
+    pub fn reset(&mut self) {
+        for i in 0..self.widgets.len() {
+            self.widgets[i].reset();
+        }
+    }
 }
 
 impl Widget for &ActionBar<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -113,14 +137,8 @@ impl Widget for &ActionBar<'_> {
         Clear.render(layout[1], buf);
         action_message.render(layout[1], buf);
 
-        match self.action_widget {
-            ActionWidget::NewFile => {
-                self.new_file_widget.render(area, buf);
-            },
-            ActionWidget::OpenFile => {
-                self.open_file_widget.render(area, buf);
-            },
-            ActionWidget::None => {}
+        if let Some(widget) = self.get_active_widget() {
+            widget.render(area, buf);
         }
     }
 }
@@ -139,43 +157,30 @@ mod tests {
         let show = Rc::new(Cell::new(false));
         let action_bar = ActionBar::new(Rc::clone(&show), Rc::clone(&state));
 
-        assert_eq!(action_bar.action_widget, ActionWidget::None);
+        assert_eq!(action_bar.current_action, ActionType::None);
         assert_eq!(show.get(), false);
     }
 
     #[test]
-    fn test_handle_input_new_file_shortcut() {
+    fn test_handle_input_shortcuts() {
         let state = Rc::new(RefCell::new(State::default()));
         let show = Rc::new(Cell::new(false));
         let mut action_bar = ActionBar::new(Rc::clone(&show), Rc::clone(&state));
 
+        // Test New File
         let key = KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE);
         action_bar.handle_input(key).unwrap();
-        assert_eq!(action_bar.action_widget, ActionWidget::NewFile);
-    }
+        assert_eq!(action_bar.current_action, ActionType::NewFile);
 
-    #[test]
-    fn test_handle_input_open_file_shortcut() {
-        let state = Rc::new(RefCell::new(State::default()));
-        let show = Rc::new(Cell::new(false));
-        let mut action_bar = ActionBar::new(Rc::clone(&show), Rc::clone(&state));
-
+        // Test Open File
         let key = KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE);
         action_bar.handle_input(key).unwrap();
-        assert_eq!(action_bar.action_widget, ActionWidget::OpenFile);
-    }
+        assert_eq!(action_bar.current_action, ActionType::OpenFile);
 
-    #[test]
-    fn test_handle_input_escape_closes_action_bar() {
-        let state = Rc::new(RefCell::new(State::default()));
-        let show = Rc::new(Cell::new(true));
-        let mut action_bar = ActionBar::new(Rc::clone(&show), Rc::clone(&state));
-
-        action_bar.action_widget = ActionWidget::OpenFile;
+        // Test Escape
         let key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         action_bar.handle_input(key).unwrap();
-
-        assert_eq!(action_bar.action_widget, ActionWidget::None);
+        assert_eq!(action_bar.current_action, ActionType::None);
         assert_eq!(show.get(), false);
     }
 }

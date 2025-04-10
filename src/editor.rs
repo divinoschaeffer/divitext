@@ -10,6 +10,7 @@ use std::io;
 use std::io::Write;
 use std::rc::Rc;
 use ratatui::text::Text;
+use ratatui::widgets::{Block, Borders, Paragraph};
 use tui_textarea::TextArea;
 
 const FILE_SUCCESSFULLY_SAVED:&str = "File saved successfully !";
@@ -104,12 +105,33 @@ impl Widget for &Editor<'_> {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Fill(1),
-                Constraint::Max(1),
+                Constraint::Max(2),
             ])
             .split(area);
 
+        let status_bar = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(33),
+                Constraint::Percentage(33),
+                Constraint::Percentage(33),
+            ])
+         .split(layout[1]);
+
+        let status_bar_block = Block::default().borders(Borders::TOP);
+
         if !self.get_buffer_list().is_empty() {
-            self.get_current_buffer().input.render(layout[0], buf);
+            let buffer = self.get_current_buffer();
+            buffer.input.render(layout[0], buf);
+
+            status_bar_block.render(layout[1], buf);
+
+            let buffer_name_block = Block::default();
+            let buffer_name = Paragraph::new(buffer.filename.unwrap())
+                .centered()
+                .block(buffer_name_block)
+                .bold();
+            buffer_name.render(status_bar[0], buf);
         }
         if self.show_success_save {
             let message = Text::raw(FILE_SUCCESSFULLY_SAVED)
@@ -117,7 +139,7 @@ impl Widget for &Editor<'_> {
                 .on_white()
                 .bold()
                 .centered();
-            message.render(layout[1], buf);
+            message.render(status_bar[1], buf);
         }
     }
 }

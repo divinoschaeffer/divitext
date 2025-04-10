@@ -2,30 +2,40 @@ use ratatui::prelude::{Color, Style};
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
 use std::io;
+use std::path::Path;
 use tui_textarea::TextArea;
 
 #[derive(Debug, Clone, Default)]
 pub struct Buffer<'a>{
     pub input: TextArea<'a>,
     pub filename: Option<String>,
+    pub path: Option<String>
 }
 
 impl<'a> Buffer<'a> {
-    pub fn new(input: TextArea<'a>, filename: Option<String>) -> Buffer<'a> {
-        Buffer { input, filename }
+    pub fn new(input: TextArea<'a>, path: Option<String>) -> Buffer<'a> {
+        Buffer { input, filename: None, path }
     }
 
-    pub fn init(&mut self, filename: &str) -> Result<(), io::Error> {
+    pub fn init(&mut self, path: &str) -> Result<(), io::Error> {
+        let filename = Path::new(path)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+
         let file = OpenOptions::new()
             .create(true)
             .truncate(false)
             .read(true)
             .write(true)
-            .open(filename)?;
+            .open(path)?;
 
         let result = BufReader::new(file).lines().collect::<io::Result<_>>()?;
         self.input = self.custom_text_area(result);
-        self.filename = Some(String::from(filename));
+        self.path = Some(String::from(path));
+        self.filename = Some(filename);
         Ok(())
     }
 
