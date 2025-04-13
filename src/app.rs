@@ -1,3 +1,4 @@
+use crate::action_bar::{ActionBar, ActionType};
 use crate::editor::Editor;
 use crate::home::Home;
 use crate::state::State;
@@ -8,7 +9,6 @@ use ratatui::{DefaultTerminal, Frame};
 use std::cell::{Cell, RefCell};
 use std::io;
 use std::rc::Rc;
-use crate::action_bar::{ActionBar, ActionWidget};
 
 #[derive(Debug)]
 pub struct App<'a> {
@@ -28,7 +28,7 @@ impl Default for App<'_> {
             editor: Editor::new(state.clone()),
             action_bar: ActionBar::new(show_action_bar.clone(), state.clone()),
             state,
-            show_action_bar: show_action_bar.clone(),
+            show_action_bar,
         }
     }
 }
@@ -89,26 +89,29 @@ impl App<'_> {
 
     fn handle_events(&mut self) -> io::Result<()> {
         if let Event::Key(key) = event::read()? {
-
+            // Global shortcuts
             if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::CONTROL {
                 self.state.borrow_mut().exit = true;
+                return Ok(());
             }
 
             if key.code == KeyCode::Char(' ') && key.modifiers == KeyModifiers::CONTROL {
-                self.action_bar.action_widget = ActionWidget::None;
+                self.action_bar.current_action = ActionType::None;
                 self.show_action_bar.set(!self.show_action_bar.get());
+                self.action_bar.reset();
+                return Ok(());
             }
 
+            // Handle input based on current context
             if self.show_action_bar.get() {
                 if key.code == KeyCode::Esc {
                     self.show_action_bar.set(false);
-                    self.action_bar.action_widget = ActionWidget::None;
+                    self.action_bar.current_action = ActionType::None;
                 } else {
                     self.action_bar.handle_input(key)?;
                 }
             } else {
                 let current_screen = self.state.borrow().current_screen.clone();
-
                 match current_screen {
                     CurrentScreen::Home => self.home.handle_input(key)?,
                     CurrentScreen::Editor => self.editor.handle_input(key)?,

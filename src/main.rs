@@ -16,6 +16,8 @@ mod new_file_widget;
 mod text_area_popup_widget;
 mod error_type;
 mod open_file_widget;
+mod popup;
+mod buffer_list_widget;
 
 fn init_logger() {
     let log_file = OpenOptions::new()

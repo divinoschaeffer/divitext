@@ -1,16 +1,16 @@
 use crate::buffer::Buffer;
 use crate::state::State;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Direction, Flex, Layout, Rect};
 use ratatui::prelude::Widget;
 use ratatui::style::Stylize;
+use ratatui::text::Text;
+use ratatui::widgets::{Block, Borders, Paragraph};
 use std::cell::RefCell;
 use std::fs::OpenOptions;
 use std::io;
 use std::io::Write;
 use std::rc::Rc;
-use ratatui::text::Text;
-use tui_textarea::TextArea;
 
 const FILE_SUCCESSFULLY_SAVED:&str = "File saved successfully !";
 
@@ -37,9 +37,6 @@ impl<'a> Editor<'a> {
 
             state.buffer_list.push(buffer);
             state.current_buffer = state.buffer_list.len() - 1;
-        } else {
-            let buffer = Buffer::new(TextArea::default(), None);
-            state.buffer_list.push(buffer);
         }
         Ok(())
     }
@@ -104,28 +101,66 @@ impl Widget for &Editor<'_> {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Fill(1),
-                Constraint::Max(1),
+                Constraint::Max(2),
             ])
             .split(area);
 
+        let status_bar = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(33),
+                Constraint::Percentage(33),
+                Constraint::Percentage(33),
+            ])
+         .split(layout[1]);
+
+        let status_bar_block = Block::default().borders(Borders::TOP);
+
+        let vertical = Layout::vertical([Constraint::Max(1)]).flex(Flex::Center);
+        let [left_status_bar_vertical] = vertical.areas(status_bar[0]);
+        let horizontal = Layout::horizontal([Constraint::Fill(100)]).flex(Flex::Center);
+        let [left_status_bar] = horizontal.areas(left_status_bar_vertical);
+
+        let vertical = Layout::vertical([Constraint::Max(1)]).flex(Flex::Center);
+        let [mid_status_bar_vertical] = vertical.areas(status_bar[1]);
+        let horizontal = Layout::horizontal([Constraint::Fill(100)]).flex(Flex::Center);
+        let [mid_status_bar] = horizontal.areas(mid_status_bar_vertical);
+
+        let vertical = Layout::vertical([Constraint::Max(1)]).flex(Flex::Center);
+        let [right_status_bar_vertical] = vertical.areas(status_bar[2]);
+        let horizontal = Layout::horizontal([Constraint::Fill(100)]).flex(Flex::Center);
+        let [right_status_bar] = horizontal.areas(right_status_bar_vertical);
+
         if !self.get_buffer_list().is_empty() {
-            self.get_current_buffer().input.render(layout[0], buf);
+            let buffer = self.get_current_buffer();
+            buffer.input.render(layout[0], buf);
+
+            status_bar_block.render(layout[1], buf);
+
+            let buffer_name = Paragraph::new(buffer.filename.unwrap())
+                .centered()
+                .bold();
+            buffer_name.render(left_status_bar, buf);
         }
         if self.show_success_save {
             let message = Text::raw(FILE_SUCCESSFULLY_SAVED)
-                .black()
-                .on_white()
                 .bold()
                 .centered();
-            message.render(layout[1], buf);
+            message.render(mid_status_bar, buf);
         }
+        let cursor_position = self.get_current_buffer().input.cursor();
+        let cursor_position_string = format!("{}:{}", cursor_position.0 + 1, cursor_position.1 + 1);
+        let position_paragraph = Paragraph::new(cursor_position_string)
+            .bold()
+            .centered();
+        position_paragraph.render(right_status_bar, buf);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, KeyEventKind, KeyEventState};
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
     use std::cell::RefCell;
     use std::fs::{self, File};
     use std::rc::Rc;
@@ -153,8 +188,7 @@ mod tests {
         editor.init(None).unwrap();
 
         let buffer_list = editor.get_buffer_list();
-        assert_eq!(buffer_list.len(), 1);
-        assert!(buffer_list[0].filename.is_none());
+        assert_eq!(buffer_list.len(), 0);
     }
 
     #[test]
@@ -194,7 +228,10 @@ mod tests {
     fn test_handle_input_current_buffer() {
         let state = Rc::new(RefCell::new(State::default()));
         let mut editor = Editor::new(Rc::clone(&state));
-        editor.init(None).unwrap();
+
+        let file_path = "test_file.txt";
+        File::create(file_path).unwrap();
+        editor.init(Some(&file_path.to_string())).unwrap();
 
         let key_event = KeyEvent {
             code: KeyCode::Char('a'),
@@ -212,7 +249,9 @@ mod tests {
     fn test_success_message_resets_on_other_input() {
         let state = Rc::new(RefCell::new(State::default()));
         let mut editor = Editor::new(Rc::clone(&state));
-        editor.init(None).unwrap();
+        let file_path = "test_file.txt";
+        File::create(file_path).unwrap();
+        editor.init(Some(&file_path.to_string())).unwrap();
 
         editor.show_success_save = true;
 
@@ -225,15 +264,5 @@ mod tests {
 
         editor.handle_input(key_event).unwrap();
         assert!(!editor.show_success_save);
-    }
-
-    #[test]
-    fn test_get_current_buffer_returns_expected_buffer() {
-        let state = Rc::new(RefCell::new(State::default()));
-        let mut editor = Editor::new(Rc::clone(&state));
-        editor.init(None).unwrap();
-
-        let buffer = editor.get_current_buffer();
-        assert!(buffer.filename.is_none());
     }
 }

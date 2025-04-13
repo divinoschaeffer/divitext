@@ -34,6 +34,12 @@ impl<'a> State<'a> {
         self.buffer_list.push(buffer);
         self.current_buffer = self.buffer_list.len() - 1;
     }
+
+    pub fn find_buffer_index(&self, path: &str) -> Option<usize> {
+        self.buffer_list
+            .iter()
+            .position(|x| x.clone().path.unwrap() == path)
+    }
 }
 
 #[cfg(test)]
@@ -69,7 +75,7 @@ mod tests {
 
         assert_eq!(state.buffer_list.len(), 1);
         assert_eq!(state.current_buffer, 0);
-        assert_eq!(state.buffer_list[0].filename, Some("test.txt".to_string()));
+        assert_eq!(state.buffer_list[0].path, Some("test.txt".to_string()));
     }
 
     #[test]
