@@ -4,14 +4,13 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Flex, Layout, Rect};
 use ratatui::prelude::Widget;
 use ratatui::style::Stylize;
+use ratatui::text::Text;
+use ratatui::widgets::{Block, Borders, Paragraph};
 use std::cell::RefCell;
 use std::fs::OpenOptions;
 use std::io;
 use std::io::Write;
 use std::rc::Rc;
-use ratatui::text::Text;
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use tui_textarea::TextArea;
 
 const FILE_SUCCESSFULLY_SAVED:&str = "File saved successfully !";
 
@@ -38,9 +37,6 @@ impl<'a> Editor<'a> {
 
             state.buffer_list.push(buffer);
             state.current_buffer = state.buffer_list.len() - 1;
-        } else {
-            let buffer = Buffer::new(TextArea::default(), None);
-            state.buffer_list.push(buffer);
         }
         Ok(())
     }
@@ -164,7 +160,7 @@ impl Widget for &Editor<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, KeyEventKind, KeyEventState};
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
     use std::cell::RefCell;
     use std::fs::{self, File};
     use std::rc::Rc;
@@ -192,8 +188,7 @@ mod tests {
         editor.init(None).unwrap();
 
         let buffer_list = editor.get_buffer_list();
-        assert_eq!(buffer_list.len(), 1);
-        assert!(buffer_list[0].filename.is_none());
+        assert_eq!(buffer_list.len(), 0);
     }
 
     #[test]
@@ -233,7 +228,10 @@ mod tests {
     fn test_handle_input_current_buffer() {
         let state = Rc::new(RefCell::new(State::default()));
         let mut editor = Editor::new(Rc::clone(&state));
-        editor.init(None).unwrap();
+
+        let file_path = "test_file.txt";
+        File::create(file_path).unwrap();
+        editor.init(Some(&file_path.to_string())).unwrap();
 
         let key_event = KeyEvent {
             code: KeyCode::Char('a'),
@@ -251,7 +249,9 @@ mod tests {
     fn test_success_message_resets_on_other_input() {
         let state = Rc::new(RefCell::new(State::default()));
         let mut editor = Editor::new(Rc::clone(&state));
-        editor.init(None).unwrap();
+        let file_path = "test_file.txt";
+        File::create(file_path).unwrap();
+        editor.init(Some(&file_path.to_string())).unwrap();
 
         editor.show_success_save = true;
 
@@ -264,15 +264,5 @@ mod tests {
 
         editor.handle_input(key_event).unwrap();
         assert!(!editor.show_success_save);
-    }
-
-    #[test]
-    fn test_get_current_buffer_returns_expected_buffer() {
-        let state = Rc::new(RefCell::new(State::default()));
-        let mut editor = Editor::new(Rc::clone(&state));
-        editor.init(None).unwrap();
-
-        let buffer = editor.get_current_buffer();
-        assert!(buffer.filename.is_none());
     }
 }

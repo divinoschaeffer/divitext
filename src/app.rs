@@ -1,14 +1,14 @@
+use crate::action_bar::{ActionBar, ActionType};
 use crate::editor::Editor;
 use crate::home::Home;
 use crate::state::State;
-use crossterm::event::{DisableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{DisableMouseCapture, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{event, execute};
 use ratatui::{DefaultTerminal, Frame};
 use std::cell::{Cell, RefCell};
 use std::io;
 use std::rc::Rc;
-use crate::action_bar::{ActionBar, ActionType};
 
 #[derive(Debug)]
 pub struct App<'a> {

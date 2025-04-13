@@ -87,6 +87,8 @@ impl ActionWidget for NewFileWidget<'_> {
         Ok(self.error == ErrorType::NONE)
     }
 
+    fn init_action(&mut self) {}
+
     fn reset(&mut self) {
         self.error = ErrorType::NONE;
         self.input.move_cursor(CursorMove::Head);

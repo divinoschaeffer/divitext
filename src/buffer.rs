@@ -63,7 +63,7 @@ mod tests{
     fn test_buffer_new() {
         let textarea = TextArea::new(vec!["Hello, world!".to_string()]);
         let buffer = Buffer::new(textarea.clone(), Some("test.txt".to_string()));
-        assert_eq!(buffer.filename, Some("test.txt".to_string()));
+        assert_eq!(buffer.path, Some("test.txt".to_string()));
         assert_eq!(buffer.input.lines(), textarea.lines());
     }
 
@@ -75,7 +75,7 @@ mod tests{
 
         let mut buffer = Buffer::default();
         assert!(buffer.init(&path).is_ok());
-        assert_eq!(buffer.filename, Some(path));
+        assert_eq!(buffer.path, Some(path));
         assert_eq!(buffer.input.lines(), vec!["Hello, world!".to_string()]);
     }
 

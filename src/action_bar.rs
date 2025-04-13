@@ -7,6 +7,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::Widget;
 use ratatui::style::Stylize;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use crate::buffer_list_widget::BufferListWidget;
 use crate::new_file_widget::NewFileWidget;
 use crate::open_file_widget::OpenFileWidget;
 use crate::state::State;
@@ -16,6 +17,7 @@ pub trait ActionWidget: std::fmt::Debug {
     fn handle_input(&mut self, key: KeyEvent) -> Result<(), io::Error>;
     fn has_error(&self) -> bool;
     fn process_action(&mut self) -> Result<bool, io::Error>;
+    fn init_action(&mut self);
     fn reset(&mut self);
 }
 
@@ -23,11 +25,12 @@ pub trait ActionWidget: std::fmt::Debug {
 pub enum ActionType {
     NewFile,
     OpenFile,
+    ChangeBuffer,
     #[default]
     None
 }
 
-const ACTION: &str = "n: Create File | o: Open File\n\nEsc: Close";
+const ACTION: &str = "n: Create File | o: Open File | b: Change Buffer\n\nEsc: Close";
 
 #[derive(Debug)]
 pub struct ActionBar<'a> {
@@ -41,12 +44,17 @@ impl<'a> ActionBar<'a> {
     pub fn new(show: Rc<Cell<bool>>, state: Rc<RefCell<State<'a>>>) -> ActionBar<'a> {
         let new_file_widget = Box::new(NewFileWidget::new(state.clone()));
         let open_file_widget = Box::new(OpenFileWidget::new(state.clone()));
+        let buffer_list_widget = Box::new(BufferListWidget::new(state.clone()));
 
         ActionBar {
             show,
             state,
             current_action: ActionType::None,
-            widgets: vec![new_file_widget, open_file_widget],
+            widgets: vec![
+                new_file_widget,
+                open_file_widget,
+                buffer_list_widget,
+            ],
         }
     }
 
@@ -54,6 +62,10 @@ impl<'a> ActionBar<'a> {
         if self.current_action != ActionType::None {
             self.handle_active_widget_input(key)?;
             return Ok(());
+        } else {
+            for widget in self.widgets.iter_mut() {
+                widget.init_action();
+            }
         }
 
         match key.code {
@@ -68,6 +80,9 @@ impl<'a> ActionBar<'a> {
             KeyCode::Char('o') => {
                 self.current_action = ActionType::OpenFile;
             },
+            KeyCode::Char('b') => {
+                self.current_action = ActionType::ChangeBuffer;
+            }
             _ => ()
         }
         Ok(())
@@ -77,6 +92,7 @@ impl<'a> ActionBar<'a> {
         let widget_index = match self.current_action {
             ActionType::NewFile => 0,
             ActionType::OpenFile => 1,
+            ActionType::ChangeBuffer => 2,
             ActionType::None => return Ok(()),
         };
 
@@ -106,6 +122,7 @@ impl<'a> ActionBar<'a> {
         match self.current_action {
             ActionType::NewFile => Some(&self.widgets[0]),
             ActionType::OpenFile => Some(&self.widgets[1]),
+            ActionType::ChangeBuffer => Some(&self.widgets[2]),
             ActionType::None => None,
         }
     }
@@ -172,10 +189,21 @@ mod tests {
         action_bar.handle_input(key).unwrap();
         assert_eq!(action_bar.current_action, ActionType::NewFile);
 
+        action_bar.current_action = ActionType::None;
+
         // Test Open File
         let key = KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE);
         action_bar.handle_input(key).unwrap();
         assert_eq!(action_bar.current_action, ActionType::OpenFile);
+
+        action_bar.current_action = ActionType::None;
+
+        // Test Change Buffer
+        let key = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE);
+        action_bar.handle_input(key).unwrap();
+        assert_eq!(action_bar.current_action, ActionType::ChangeBuffer);
+
+        action_bar.current_action = ActionType::None;
 
         // Test Escape
         let key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);

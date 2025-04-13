@@ -3,7 +3,7 @@ use crate::error_type::ErrorType;
 use crate::state::State;
 use crate::text_area_popup_widget::text_area_popup;
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Flex, Layout, Rect};
+use ratatui::layout::{Rect};
 use ratatui::style::Stylize;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget};
 use std::cell::RefCell;
@@ -89,6 +89,8 @@ impl ActionWidget for OpenFileWidget<'_> {
         Ok(self.error == ErrorType::NONE)
     }
 
+    fn init_action(&mut self) {}
+
     fn reset(&mut self) {
         self.error = ErrorType::NONE;
         self.input.move_cursor(CursorMove::Head);
@@ -150,7 +152,7 @@ mod tests {
     #[test]
     fn test_popup_area_is_centered() {
         let area = Rect::new(0, 0, 100, 30);
-        let popup = super::popup_area(area, 50, 3);
+        let popup = popup_area(area, 50, 3);
         assert_eq!(popup.width, 50);
         assert_eq!(popup.height, 3);
         assert!(popup.x > 0);
