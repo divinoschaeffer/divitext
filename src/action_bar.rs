@@ -26,11 +26,12 @@ pub enum ActionType {
     NewFile,
     OpenFile,
     ChangeBuffer,
+    DeleteBuffer,
     #[default]
     None
 }
 
-const ACTION: &str = "n: Create File | o: Open File | b: Change Buffer\n\nEsc: Close";
+const ACTION: &str = "n: Create File | o: Open File\n b: Change Buffer | d: Close Buffer\n\nEsc: Close";
 
 #[derive(Debug)]
 pub struct ActionBar<'a> {
@@ -44,7 +45,8 @@ impl<'a> ActionBar<'a> {
     pub fn new(show: Rc<Cell<bool>>, state: Rc<RefCell<State<'a>>>) -> ActionBar<'a> {
         let new_file_widget = Box::new(NewFileWidget::new(state.clone()));
         let open_file_widget = Box::new(OpenFileWidget::new(state.clone()));
-        let buffer_list_widget = Box::new(BufferListWidget::new(state.clone()));
+        let buffer_navigation_widget = Box::new(BufferListWidget::for_navigation(state.clone()));
+        let buffer_deletion_widget = Box::new(BufferListWidget::for_deletion(state.clone()));
 
         ActionBar {
             show,
@@ -53,7 +55,8 @@ impl<'a> ActionBar<'a> {
             widgets: vec![
                 new_file_widget,
                 open_file_widget,
-                buffer_list_widget,
+                buffer_navigation_widget,
+                buffer_deletion_widget,
             ],
         }
     }
@@ -82,6 +85,9 @@ impl<'a> ActionBar<'a> {
             },
             KeyCode::Char('b') => {
                 self.current_action = ActionType::ChangeBuffer;
+            },
+            KeyCode::Char('d') => {
+                self.current_action = ActionType::DeleteBuffer;
             }
             _ => ()
         }
@@ -93,6 +99,7 @@ impl<'a> ActionBar<'a> {
             ActionType::NewFile => 0,
             ActionType::OpenFile => 1,
             ActionType::ChangeBuffer => 2,
+            ActionType::DeleteBuffer => 3,
             ActionType::None => return Ok(()),
         };
 
@@ -123,6 +130,7 @@ impl<'a> ActionBar<'a> {
             ActionType::NewFile => Some(&self.widgets[0]),
             ActionType::OpenFile => Some(&self.widgets[1]),
             ActionType::ChangeBuffer => Some(&self.widgets[2]),
+            ActionType::DeleteBuffer => Some(&self.widgets[3]),
             ActionType::None => None,
         }
     }

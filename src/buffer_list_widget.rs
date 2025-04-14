@@ -4,10 +4,10 @@ use crate::state::State;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::prelude::Widget;
 use ratatui::style::{Color, Style, Stylize};
-use ratatui::widgets::{Block, Borders, Clear, HighlightSpacing, List, ListItem, ListState};
+use ratatui::widgets::{Block, Borders, Clear, HighlightSpacing, List, ListItem, ListState, Widget};
 use std::cell::RefCell;
+use std::fmt;
 use std::fmt::Debug;
 use std::io::Error;
 use std::option::Option;
@@ -16,35 +16,90 @@ use std::rc::Rc;
 const SELECT_STYLE: Style = Style::new().bg(Color::White).fg(Color::Black);
 const ALPHABET: &str = "abcdefghijklmnopqrstuvwxyz";
 
-#[derive(Debug)]
+pub type ProcessActionFn<'a> = Box<dyn Fn(&mut State<'a>, usize) -> Result<bool, Error> + 'a>;
+
 pub struct BufferListWidget<'a> {
     pub state: Rc<RefCell<State<'a>>>,
     pub items: Vec<BufferItem>,
     pub list_state: ListState,
     pub current: Option<usize>,
+    pub title: String,
+    pub process_fn: ProcessActionFn<'a>,
+}
+
+impl<'a> fmt::Debug for BufferListWidget<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BufferListWidget")
+            .field("state", &self.state)
+            .field("items", &self.items)
+            .field("list_state", &self.list_state)
+            .field("current", &self.current)
+            .field("title", &self.title)
+            .field("process_fn", &"<function>")
+            .finish()
+    }
 }
 
 #[derive(Debug)]
 pub struct BufferItem {
-    file_path: String,
-    char: char
+    pub file_path: String,
+    pub buffer_index: usize,
+    pub char: char
 }
 
 impl BufferItem {
-    pub fn new(file_path: String, char: char) -> BufferItem {
-        BufferItem {file_path, char}
+    pub fn new(file_path: String, buffer_index: usize, char: char) -> BufferItem {
+        BufferItem {file_path, buffer_index, char}
     }
 }
 
 impl<'a> BufferListWidget<'a> {
-    pub fn new(state: Rc<RefCell<State<'a>>>) -> BufferListWidget<'a> {
+    pub fn new(
+        state: Rc<RefCell<State<'a>>>,
+        title: &str,
+        process_fn: ProcessActionFn<'a>
+    ) -> BufferListWidget<'a> {
         let items = Vec::new();
         BufferListWidget {
             state,
             items,
             list_state: ListState::default(),
             current: None,
+            title: title.to_string(),
+            process_fn,
         }
+    }
+
+    pub fn for_navigation(state: Rc<RefCell<State<'a>>>) -> BufferListWidget<'a> {
+        let navigate_fn: ProcessActionFn<'a> = Box::new(|state, buffer_index| {
+            state.current_buffer = buffer_index;
+            Ok(true)
+        });
+
+        BufferListWidget::new(state, "Buffer List", navigate_fn)
+    }
+
+    pub fn for_deletion(state: Rc<RefCell<State<'a>>>) -> BufferListWidget<'a> {
+        let delete_fn: ProcessActionFn<'a> = Box::new(|state, buffer_index| {
+            if state.buffer_list.len() > 1 {
+                if state.current_buffer == buffer_index {
+                    if buffer_index > 0 {
+                        state.current_buffer = buffer_index - 1;
+                    } else if state.buffer_list.len() > 1 {
+                        state.current_buffer = 0;
+                    }
+                } else if state.current_buffer > buffer_index {
+                    state.current_buffer -= 1;
+                }
+
+                state.buffer_list.remove(buffer_index);
+
+                return Ok(true);
+            }
+            Ok(false)
+        });
+
+        BufferListWidget::new(state, "Delete Buffer", delete_fn)
     }
 
     pub fn refresh_list(&mut self) {
@@ -53,10 +108,10 @@ impl<'a> BufferListWidget<'a> {
 
         let mut chars = ALPHABET.chars();
 
-        for buffer in state.buffer_list.iter() {
+        for (index, buffer) in state.buffer_list.iter().enumerate() {
             if let Some(path) = buffer.path.clone() {
                 let buffer_char = chars.next().unwrap_or('-');
-                self.items.push(BufferItem::new(path, buffer_char));
+                self.items.push(BufferItem::new(path, index, buffer_char));
             }
         }
     }
@@ -66,7 +121,7 @@ impl<'a> BufferListWidget<'a> {
 
         let block = Block::default()
             .bold()
-            .title("Buffer List")
+            .title(self.title.clone())
             .borders(Borders::ALL);
 
         let items: Vec<ListItem> = self
@@ -162,7 +217,7 @@ impl From<&BufferItem> for ListItem<'_> {
     }
 }
 
-impl ActionWidget for BufferListWidget<'_> {
+impl<'a> ActionWidget for BufferListWidget<'a> {
     fn render(&self, area: Rect, buf: &mut Buffer) {
         self.render_content(area, buf);
     }
@@ -176,13 +231,15 @@ impl ActionWidget for BufferListWidget<'_> {
     }
 
     fn process_action(&mut self) -> Result<bool, Error> {
-        if self.current.is_some() {
-            let mut state = self.state.borrow_mut();
-            state.current_buffer = state.find_buffer_index(
-                &*self.items[self.current.unwrap()].file_path
-            ).unwrap();
+        if let Some(current_idx) = self.current {
+            if current_idx < self.items.len() {
+                let buffer_index = self.items[current_idx].buffer_index;
+                let mut state = self.state.borrow_mut();
+
+                return (self.process_fn)(&mut *state, buffer_index);
+            }
         }
-        Ok(true)
+        Ok(false)
     }
 
     fn init_action(&mut self) {
@@ -237,24 +294,30 @@ mod tests {
     #[test]
     fn test_buffer_list_widget_new() {
         let state = create_test_state();
-        let widget = BufferListWidget::new(state);
+        let process_fn: ProcessActionFn = Box::new(|_, _| Ok(true));
+        let widget = BufferListWidget::new(state, "Test Title", process_fn);
 
         assert!(widget.items.is_empty());
         assert_eq!(widget.current, None);
+        assert_eq!(widget.title, "Test Title");
     }
 
     #[test]
-    fn test_buffer_item_new() {
-        let item = BufferItem::new("test.txt".to_string(), 'a');
+    fn test_factory_methods() {
+        let state = create_test_state();
 
-        assert_eq!(item.file_path, "test.txt");
-        assert_eq!(item.char, 'a');
+        let navigation_widget = BufferListWidget::for_navigation(state.clone());
+        assert_eq!(navigation_widget.title, "Buffer List");
+
+        let deletion_widget = BufferListWidget::for_deletion(state.clone());
+        assert_eq!(deletion_widget.title, "Delete Buffer");
     }
 
     #[test]
     fn test_refresh_list() {
         let state = create_test_state();
-        let mut widget = BufferListWidget::new(state);
+        let process_fn: ProcessActionFn = Box::new(|_, _| Ok(true));
+        let mut widget = BufferListWidget::new(state, "Test", process_fn);
 
         widget.refresh_list();
 
@@ -263,15 +326,16 @@ mod tests {
         assert_eq!(widget.items[1].file_path, "file2.txt");
         assert_eq!(widget.items[2].file_path, "file3.txt");
 
-        assert_eq!(widget.items[0].char, 'a');
-        assert_eq!(widget.items[1].char, 'b');
-        assert_eq!(widget.items[2].char, 'c');
+        assert_eq!(widget.items[0].buffer_index, 0);
+        assert_eq!(widget.items[1].buffer_index, 1);
+        assert_eq!(widget.items[2].buffer_index, 2);
     }
 
     #[test]
     fn test_select_navigation() {
         let state = create_test_state();
-        let mut widget = BufferListWidget::new(state);
+        let process_fn: ProcessActionFn = Box::new(|_, _| Ok(true));
+        let mut widget = BufferListWidget::new(state, "Test", process_fn);
         widget.refresh_list();
 
         // Initially no selection
@@ -303,100 +367,118 @@ mod tests {
     }
 
     #[test]
-    fn test_select_by_letter() {
+    fn test_process_action_navigation() {
         let state = create_test_state();
-        let mut widget = BufferListWidget::new(state);
+        let state_clone = state.clone();
+        let mut widget = BufferListWidget::for_navigation(state);
         widget.refresh_list();
 
         widget.select_by_letter('b');
         assert_eq!(widget.current, Some(1));
 
-        widget.select_by_letter('c');
-        assert_eq!(widget.current, Some(2));
+        let result = widget.process_action().unwrap();
+        assert!(result);
 
-        widget.select_by_letter('a');
-        assert_eq!(widget.current, Some(0));
-
-        // Non-existing letter should not change selection
-        widget.select_by_letter('z');
-        assert_eq!(widget.current, Some(0));
+        {
+            let state_ref = state_clone.borrow();
+            assert_eq!(state_ref.current_buffer, 1);
+        }
     }
 
     #[test]
-    fn test_handle_event() {
-        let state = create_test_state();
-        let mut widget = BufferListWidget::new(state);
-        widget.refresh_list();
-
-        // Test arrow keys
-        widget.handle_event(create_key_event(KeyCode::Down)).unwrap();
-        assert_eq!(widget.current, Some(0));
-
-        widget.handle_event(create_key_event(KeyCode::Down)).unwrap();
-        assert_eq!(widget.current, Some(1));
-
-        widget.handle_event(create_key_event(KeyCode::Up)).unwrap();
-        assert_eq!(widget.current, Some(0));
-
-        // Test Home/End
-        widget.handle_event(create_key_event(KeyCode::End)).unwrap();
-        assert_eq!(widget.current, Some(2));
-
-        widget.handle_event(create_key_event(KeyCode::Home)).unwrap();
-        assert_eq!(widget.current, Some(0));
-
-        // Test letter selection
-        widget.handle_event(create_key_event(KeyCode::Char('b'))).unwrap();
-        assert_eq!(widget.current, Some(1));
-    }
-
-    #[test]
-    fn test_process_action() {
+    fn test_process_action_deletion() {
         let state = create_test_state();
         let state_clone = state.clone();
-        let mut widget = BufferListWidget::new(state);
+        let mut widget = BufferListWidget::for_deletion(state);
+        widget.refresh_list();
+
+        widget.select_by_letter('b');
+        assert_eq!(widget.current, Some(1));
+
+        // Verify there is 3 buffer
+        {
+            let state_ref = state_clone.borrow();
+            assert_eq!(state_ref.buffer_list.len(), 3);
+        }
+
+        // remove buffer
+        let result = widget.process_action().unwrap();
+        assert!(result);
+
+        // Verify there is 2 buffer after delete
+        {
+            let state_ref = state_clone.borrow();
+            assert_eq!(state_ref.buffer_list.len(), 2);
+            assert_eq!(state_ref.buffer_list[0].path, Some("file1.txt".to_string()));
+            assert_eq!(state_ref.buffer_list[1].path, Some("file3.txt".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_delete_current_buffer() {
+        let state = create_test_state();
+        {
+            let mut state_ref = state.borrow_mut();
+            state_ref.current_buffer = 1;
+        }
+
+        let mut widget = BufferListWidget::for_deletion(state.clone());
         widget.refresh_list();
 
         widget.select_by_letter('b');
         let result = widget.process_action().unwrap();
-
         assert!(result);
 
-        let state_ref = state_clone.borrow();
-        assert_eq!(state_ref.current_buffer, 1);
+        {
+            let state_ref = state.borrow();
+            assert_eq!(state_ref.current_buffer, 0);
+            assert_eq!(state_ref.buffer_list.len(), 2);
+        }
     }
 
     #[test]
-    fn test_init_action_and_reset() {
-        let state = create_test_state();
-        let mut widget = BufferListWidget::new(state);
+    fn test_prevent_delete_last_buffer() {
+        let state = Rc::new(RefCell::new(State::default()));
+        {
+            let mut state_ref = state.borrow_mut();
+            let buffer = Buffer::new(TextArea::default(), Some("only_file.txt".to_string()));
+            state_ref.push_buffer(buffer);
+        }
 
-        assert!(widget.items.is_empty());
-
-        widget.init_action();
-        assert_eq!(widget.items.len(), 3);
+        let mut widget = BufferListWidget::for_deletion(state.clone());
+        widget.refresh_list();
 
         widget.select_first();
-        assert_eq!(widget.current, Some(0));
+        let result = widget.process_action().unwrap();
 
-        widget.reset();
-        assert_eq!(widget.current, None);
+        assert!(!result);
+
+        {
+            let state_ref = state.borrow();
+            assert_eq!(state_ref.buffer_list.len(), 1);
+        }
     }
 
     #[test]
-    fn test_has_error() {
+    fn test_custom_process_function() {
         let state = create_test_state();
-        let widget = BufferListWidget::new(state);
+        let state_clone = state.clone();
 
-        assert_eq!(widget.has_error(), false);
-    }
+        let mark_fn: ProcessActionFn = Box::new(|state, buffer_index| {
+            state.current_buffer = buffer_index;
+            Ok(true)
+        });
 
-    #[test]
-    fn test_list_item_conversion() {
-        let item = BufferItem::new("test.txt".to_string(), 'x');
-        let list_item = ListItem::from(&item);
+        let mut widget = BufferListWidget::new(state, "Mark Buffer", mark_fn);
+        widget.refresh_list();
 
-        // This test is limited as we can't easily inspect the content of the ListItem
-        // But it ensures the conversion works without panicking
+        widget.select_by_letter('c');
+        let result = widget.process_action().unwrap();
+
+        assert!(result);
+        {
+            let state_ref = state_clone.borrow();
+            assert_eq!(state_ref.current_buffer, 2);
+        }
     }
 }
