@@ -153,6 +153,15 @@ impl<'a> BufferListWidget<'a> {
         }
         Ok(())
     }
+
+    fn change_buffer(&mut self) {
+        if self.current.is_some() {
+            let mut state = self.state.borrow_mut();
+            state.current_buffer = state.find_buffer_index(
+                &*self.items[self.current.unwrap()].file_path
+            ).unwrap();
+        }
+    }
 }
 
 impl From<&BufferItem> for ListItem<'_> {
@@ -176,12 +185,7 @@ impl ActionWidget for BufferListWidget<'_> {
     }
 
     fn process_action(&mut self) -> Result<bool, Error> {
-        if self.current.is_some() {
-            let mut state = self.state.borrow_mut();
-            state.current_buffer = state.find_buffer_index(
-                &*self.items[self.current.unwrap()].file_path
-            ).unwrap();
-        }
+        self.change_buffer();
         Ok(true)
     }
 
